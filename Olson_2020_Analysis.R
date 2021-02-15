@@ -1,4 +1,8 @@
-library(Seurat)
+#Code by Alex Whitehead
+# Feb 2021, contact @ alwhiteh@ucsd.edu
+
+library(Seurat) #for RNA
+library(Signac) #for ATAC
 library(dplyr)
 library(Matrix)
 library(scran)
@@ -6,7 +10,9 @@ library(ggplot2)
 library(sctransform)
 
 #To restore Rdata use:
-#load("Dick_Global_Objects.RData")
+#load("Olson_Global_Objects.RData")
+
+#renv::init()
 
 #PC path is C:\\Users\\alwhi\\Documents\\RNASeq_stuff
 # this directory contains the following files
