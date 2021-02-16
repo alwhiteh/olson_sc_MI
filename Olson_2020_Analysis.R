@@ -1,6 +1,9 @@
 #Code by Alex Whitehead
 # Feb 2021, contact @ alwhiteh@ucsd.edu
 
+# for Renv installation of bioconductor packages, use renv::install("bioc::Biobase")
+# If there is an old version of a package (from an old version of R) that needs to be removed
+# you can use Renv::purge('RCurl')
 library(Seurat) #for RNA
 library(Signac) #for ATAC
 library(dplyr)
@@ -8,126 +11,149 @@ library(Matrix)
 library(scran)
 library(ggplot2)
 library(sctransform)
-
+library(patchwork)
 #To restore Rdata use:
 #load("Olson_Global_Objects.RData")
 
 #renv::init()
+renv::snapshot()
 
-#PC path is C:\\Users\\alwhi\\Documents\\RNASeq_stuff
-# this directory contains the following files
-# MF_MI_barcodes.tsv
-# MF_MI_genes.tsv
-# MF_MI_matrix.mtx
-# MF_SS_barcodes.tsv
-# MF_SS_genes.tsv
-# MF_SS_matrix.mtx
+# for sc RNA seq you need a directory for each sample that contains the following files
+#barcodes.tsv
+#features.tsv (previously called genes.tsv)
+#matrix.mtx
 
-# Read the MF_SS data (Note: SS (steady state) and Cont (Control) are the same data)
-Cont_MF <- Read10X(data.dir = "/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/Dick_Human_SSMac/SS_Raw_Data")
-#PC path is C:\\Users\\alwhi\\Documents\\RNASeq_stuff\\Dick_Human_SSMac\\SS_Raw_Data
-# Read the MF_MI data (post Myocardial infarction)
-MI_MF <- Read10X(data.dir = "/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/Dick_Human_SSMac/MI_Raw_Data")
-#PC Path is C:\\Users\\alwhi\\Documents\\RNASeq_stuff\\Dick_Human_SSMac\\MI_Raw_Data
+# Since we have a lot of samples, we will create a vector of paths
+rna_1_1MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_1MI")  
+rna_1_1S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_1S")
+rna_1_3MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_3MI")
+rna_1_3S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_3S")
+rna_8_1MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_1MI")
+rna_8_1S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_1S")
+rna_8_3MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_3MI")
+rna_8_3S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_3S")
+ 
+#Create Seurat Objects for each one
+rna_1_1MI<-CreateSeuratObject(rna_1_1MI.data, min.cells = 3, min.features = 200, project = "1_1MI")
+rna_1_1S<-CreateSeuratObject(rna_1_1S.data, min.cells = 3, min.features = 200,project = "1_1S")
+rna_1_3MI<-CreateSeuratObject(rna_1_3MI.data,min.cells = 3, min.features = 200,project = "1_3MI")
+rna_1_3S<-CreateSeuratObject(rna_1_3S.data,min.cells = 3, min.features = 200,project = "1_3S")
+rna_8_1MI<-CreateSeuratObject(rna_8_1MI.data,min.cells = 3, min.features = 200,project = "8_1MI")
+rna_8_1S<-CreateSeuratObject(rna_8_1S.data,min.cells = 3, min.features = 200,project = "8_1S")
+rna_8_3MI<-CreateSeuratObject(rna_8_3MI.data,min.cells = 3, min.features = 200,project = "8_3MI")
+rna_8_3S<-CreateSeuratObject(rna_8_3S.data,min.cells = 3, min.features = 200,project = "8_3S")
 
-# Create Seruat Objects
-
-Cont_MFs <- CreateSeuratObject(counts = Cont_MF, min.cells = 3, min.features = 200, 
-                               project = "Cont_MFs")
-
-
-MI_MFs <- CreateSeuratObject(counts = MI_MF, min.cells = 3, min.features = 200, 
-                             project = "MI_MFs")
-
-# Merge two dataset
-All_MFs <- merge(Cont_MFs, y = MI_MFs, add.cell.ids = c("Cont","MI"), project = "All_MFs")
+# Merge the datasets
+All_rna <- merge(rna_1_1MI, y = c(rna_1_1S,rna_1_3MI,rna_1_3S,rna_8_1MI,rna_8_1S,rna_8_3MI,rna_8_3S), 
+                 add.cell.ids = c("1_1MI","1_1S","1_3MI","1_3S","8_1MI","8_1S","8_3MI","8_3S"),
+                 project = "All_MFs")
 
 #Remove apoptotic cells with a lot of mitochondrial genes
-All_MFs[["percent.mt"]] <- PercentageFeatureSet(object = All_MFs, pattern = "^mt-")
-head(x = All_MFs@meta.data, 5)
-All_MFs #15147 features across 6503 cells
+All_rna[["percent.mt"]] <- PercentageFeatureSet(object = All_rna, pattern = "^mt-")
+head(x = All_rna@meta.data, 5)
+All_rna #15147 features across 6503 cells
 #Show how many genes, reads, and dead cells there are before filtering
-VlnPlot(object = All_MFs, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = .05)
+VlnPlot(object = All_rna, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = .05)
 #Dead cells should have less reads, bigger cells (more RNA) should have genes (features)
-pdf("ViolinAllMFsBeforeMito")
-plot1 <- FeatureScatter(object = All_MFs, feature1 = "nCount_RNA", feature2 = "percent.mt") 
-plot2 <- FeatureScatter(object = All_MFs, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") 
-CombinePlots(plots = list(plot1,plot2))
+pdf("ViolinAllRNABeforeMito.pdf")
+plot1 <- FeatureScatter(object = All_rna, feature1 = "nCount_RNA", feature2 = "percent.mt") 
+plot2 <- FeatureScatter(object = All_rna, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") 
+plot1 + plot2
 dev.off()
 #Get rid of cells outside of read BCs and dead cells with a lot of mito genes
-All_MFs2 <- subset(x = All_MFs, subset = nFeature_RNA > 1000 & nFeature_RNA < 5800 & percent.mt < 18)
-All_MFs2 #15147 genes across 6474 cells
-table(All_MFs@meta.data$orig.ident) #1806 Cont MFs and 4697 MI MFs
-table(All_MFs2@meta.data$orig.ident) #1784 Cont MFs and 4690 MI MFs
+All_rna2 <- subset(x = All_rna, subset = nFeature_RNA > 1000 & nFeature_RNA < 5800 & percent.mt < 18)
+All_rna #19016 genes across 18431 cells
+All_rna2 #19016 genes across 15739 cells
+table(All_rna@meta.data$orig.ident) #1806 Cont MFs and 4697 MI MFs
+table(All_rna2@meta.data$orig.ident) #1806 Cont MFs and 4697 MI MFs
+
 
 #Normalize
-All_MFs2 <- NormalizeData(object = All_MFs2, normalization.method = "LogNormalize", scale.factor = 1e4, verbose = TRUE)
-pdf("ViolinAllMFsAfterMito")
-plot3 <- FeatureScatter(object = All_MFs2, feature1 = "nCount_RNA", feature2 = "percent.mt") 
-plot4 <- FeatureScatter(object = All_MFs2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") 
-CombinePlots(plots = list(plot3,plot4)) #compare to earlier plots and see that correlation with size is stronger
+All_rna2 <- NormalizeData(object = All_rna2, normalization.method = "LogNormalize", scale.factor = 1e4, verbose = TRUE)
+pdf("ViolinAllMFsAfterMito.pdf")
+plot3 <- FeatureScatter(object = All_rna2, feature1 = "nCount_RNA", feature2 = "percent.mt") 
+plot4 <- FeatureScatter(object = All_rna2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") 
+plot3 + plot4 #compare to earlier plots and see that correlation with size is stronger
 dev.off()
 #Find Variable Features and Normalize
-All_MFs2 <- FindVariableFeatures(All_MFs2)
-####~~~~ BELOW IS THE CODE FROM THE ORIGINAL AUTHOR THAT IS BROKEN IN SEURAT V3~~~~~~~
-#All_MFs2 <- FindVariableFeatures(object = All_MFs2, 
-#  selection.method = 'mvp', 
-#   #mean.function = ExpMean, #this is a bug
-#   #dispersion.function = LogVMR, #this is a bug
-#   nfeatures = 2000, 
-#   #mean.cutoff = c(0.0125,1.5), 
-#   dispersion.cutoff = c(.5,30), verbose = TRUE)
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-length(x = All_MFs2@assays$RNA@var.features) #should be 1242 originally, now just top 2000 diff exp
-all.genesMF <- rownames(x = All_MFs2)
-plot1 <- VariableFeaturePlot(object = All_MFs2)
-plot1 #this sill show number of variable features that you inputted above, unsure how to get that number
+All_rna2 <- FindVariableFeatures(All_rna2)
+length(x = All_rna2@assays$RNA@var.features) # just top 2000 diff exp
+all.genesRNA <- rownames(x = All_rna2)
 
-top10DiffGenes <- head(x = VariableFeatures(object = All_MFs2), 10)
-pdf("Top10DiffGenesMItoSS", width = 10, height = 6)
-plot1 <- VariableFeaturePlot(object = All_MFs2)
+top10DiffGenes <- head(x = VariableFeatures(object = All_rna2), 10)
+pdf("Top10DiffGenesMItoSS.pdf", width = 10, height = 6)
+plot1 <- VariableFeaturePlot(object = All_rna2)
 plot2 <- LabelPoints(plot = plot1, points = top10DiffGenes, repel = TRUE)
-CombinePlots(plots = list(plot1, plot2))
+plot1 + plot2
 dev.off()
 
 #Time to Scale the Data!
-All_MFs2 <- SCTransform(All_MFs2, vars.to.regress = "percent.mt", verbose = TRUE) #Correcting for nUMI is default YES
-# ~~~~Below is the old code from Seurat V2. V3 uses SCtransform instead and regresses variables~~~
-#All_MFs2 <- ScaleData(object = All_MFs, vars.to.regress = "nUMI")
+All_rna2 <- SCTransform(All_rna2, vars.to.regress = "percent.mt", verbose = TRUE) #Correcting for nUMI is default YES
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Run UMAP
+All_rna2 <- RunPCA(All_rna2, verbose = FALSE)
+All_rna2 <- RunUMAP(All_rna2, dims = 1:30, verbose = FALSE)
+# Makeclusterss
+All_rna2 <- FindNeighbors(All_rna2, dims = 1:30, verbose = FALSE) 
+All_rna2 <- FindClusters(All_rna2, verbose = FALSE)
 
-#Run PCA
-All_MFs2 <- RunPCA(All_MFs2, verbose = FALSE)
-All_MFs2 <- RunUMAP(All_MFs2, dims = 1:30, verbose = FALSE)
-
-All_MFs2 <- FindNeighbors(All_MFs2, dims = 1:30, verbose = FALSE)
-All_MFs2 <- FindClusters(All_MFs2, verbose = FALSE)
-
-pdf("All_MFs2_MIvsCont")
-DimPlot(All_MFs2, label = TRUE, group.by = "orig.ident") + NoLegend()
+pdf("All_Samples_RNA_Dimplot.pdf")
+DimPlot(All_rna2, label = TRUE, group.by = "orig.ident") 
 dev.off()
 
-pdf("All_MFs2_byCluster")
-DimPlot(All_MFs2, label = TRUE, group.by = "ident") + NoLegend()
+pdf("RNA_Dimplot_by_Cluster.pdf")
+DimPlot(All_rna2, label = TRUE, group.by = "ident") + NoLegend()
 dev.off()
 
 #Find Markers for each cluster
-All_MFs2.markers <- FindAllMarkers(All_MFs2, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-All_MFs2.markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_logFC) -> Top2Markers
+All_rna2.markers <- FindAllMarkers(All_rna2, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
+#All_rna2.markers %>% group_by(cluster) %>% slice_max(order_by = "avg_logFC", n = 1) -> Top1Markers
+All_rna2.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2Markers
+
 #export markers and top markers as .csv files
 write.csv(Top2Markers, file = "top2markersbycluster.csv")
-write.csv(All_MFs2.markers, file = "allmarkersbycluster.csv")
+write.csv(All_rna2.markers, file = "allmarkersbycluster.csv")
 
-all_genes <- as.data.frame(all.genesMF)
+all_genes <- as.data.frame(all.genesRNA)
 write.csv(all_genes, file = "allgenes.csv")
-#Verify Specificity of Markers on PCA plot
+
+#Verify Specificity of Markers on UMAP plot
 #These are the top ones 
-pdf("All_MFs2_TopMarkeronPCA", width = 20, height = 20)
-FeaturePlot(All_MFs2, features = "Timd4", label = TRUE)
-FeaturePlot(All_MFs2, features = c("H2-Eb1","Folr2","Ms4a7","Cd74","Ccl12","Gpnmb","Fn1",
-                                   "Cd209a","Hist1h2ap","Arg1","Ear2","Ifit3","Cd79a","Sparc"), label = TRUE)
+
+pdf("All_MFs2_TopMarkeronUMAP.pdf")
+for (i in 1:length(Top2Markers$gene)){
+print(FeaturePlot(All_rna2, features = Top2Markers$gene[i], label = TRUE))}
 dev.off()
+
+# This will give you individual plots
+# for (i in 1:length(Top2Markers$gene)){
+#   temp_plot <- FeaturePlot(All_rna2, features = Top2Markers$gene[i], label = TRUE)
+#   ggsave(temp_plot, file=paste0(Top2Markers$gene[i],"featureplot.png"), width = 14, height = 10, units = "in")
+# }
+
+
+#The clusters we got were too small, so we should try again with less granular clustering
+All_rna2 <- FindClusters(All_rna2, verbose = FALSE, resolution = 0.1)
+All_rna2.markers <- FindAllMarkers(All_rna2, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) 
+All_rna2.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2Markers
+
+pdf("All_MFs2_TopMarkeronUMAP.pdf")
+for (i in 1:length(Top2Markers$gene)){
+  print(FeaturePlot(All_rna2, features = Top2Markers$gene[i], label = TRUE))}
+dev.off()
+
+# This tell us what the major cell types are 
+# Cluster 0 = CF = DCN, Col1A1
+# Cluster 1 = Endothelial Cells = CD36, FABP4
+# Cluster 2 = SMCs = Acta2, Rgs5
+# Cluster 3 = Macrophage/Monocyte = Lyz2, Spp1
+# Cluster 4 = Epicardial Cells =  C3 + MSLN
+# Cluster 5 = ? = Bace2, Plvap
+# Cluster 6 = Ccr7, Cytip - resting T cells?
+# Cluster 7 = some other macrophge?
+# Cluster 8 = Myoz2 = CM!
+# Cluster 9 = Alas2, Hbb-bh1 = 
+#
 
 #Use generalized lit markers to try to assign IDs to clusters
 # Traditional Monocytes - CD14 + Lyz, Authors use ACE
