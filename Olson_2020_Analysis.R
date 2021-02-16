@@ -166,6 +166,7 @@ save.image(file = "Olson_Global_Objects.RData")
 # CD 8 T - CD8A
 # Neutrophils - Ly6G
 
+
 #~~~~~Clusters from the Paper~~~~~~~~~~~
 # MHC2 Cluster - MMP12
 # Monocyte Cluster - Ace
@@ -182,8 +183,8 @@ VlnPlot(All_MFs2, features = c("Ace","Cd14","Cd68",'Cx3cr1',"Cd209a", "H2-Eb1"),
 FeaturePlot(All_MFs2, features = c("Xcr1","Il1b"), label= TRUE)
 
 #ID which cells are dividing 
-pdf("Cells in Cell Cycle")
-VlnPlot(All_MFs2, features = c("Xcr1","Irf8","Cdca3","Top2a"), pt.size = .5)
+pdf("Cells in Cell Cycle.pdf")
+VlnPlot(All_rna2, features = c("Xcr1","Irf8","Cdca3","Top2a"), pt.size = .5)
 dev.off()
 
 pdf("test")
