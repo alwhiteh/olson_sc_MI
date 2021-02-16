@@ -154,11 +154,9 @@ dev.off()
 # Cluster 8 = Myoz2 = CM!
 # Cluster 9 = Alas2, Hbb-bh1 = 
 #
-#<<<<<<< HEAD
-save.image(file = "Olson_Global_Objects.RData")
-#=======
 
-#>>>>>>> origin
+save.image(file = "Olson_Global_Objects.RData")
+
 #Use generalized lit markers to try to assign IDs to clusters
 # Traditional Monocytes - CD14 + Lyz, Authors use ACE
 # B cells - MS4A1
