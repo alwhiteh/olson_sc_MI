@@ -105,8 +105,6 @@ pdf("RNA_Dimplot_by_Cluster.pdf")
 DimPlot(All_rna2, label = TRUE, group.by = "ident") + NoLegend()
 dev.off()
 
-# I amde a change
-
 #Find Markers for each cluster
 All_rna2.markers <- FindAllMarkers(All_rna2, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
 #All_rna2.markers %>% group_by(cluster) %>% slice_max(order_by = "avg_logFC", n = 1) -> Top1Markers
