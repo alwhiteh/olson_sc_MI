@@ -193,14 +193,7 @@ pdf("test")
 FeaturePlot(All_MFs2, features = c("Ccl5","Fscn1","Ccr7"), label = TRUE)
 VlnPlot(All_MFs2, features = c("Ccl5","Fscn1","Ccr7","Batf3",""))
 dev.off()
-# FROM this we know that:
-# cluster 10 = Monocytes
-# cluster 11 = Isg cluster
-# cluster 1 = Timd4 cluster
-# cluster __ = PROBABLY MHC2 because it has high H2-Eb1 and also MMP12
-# cluster 12 is probably B cell contamination due to Cd79a
-# cluster 7 = cDC because CD209a 
-# cluster 13 = stromal cells referenced in paper
+
 
 
 #Make a heatmap
