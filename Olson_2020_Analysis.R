@@ -119,14 +119,13 @@ All_rna2.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2Markers
 
 #export markers and top markers as .csv files
 write.csv(Top2Markers, file = "top2markersbycluster.csv")
-write.csv(All_rna2.markers, file = "allmarkersbycluster.csv")
+write.csv(All_rna2.markers, file = "allmarkersbycluster_small_clust.csv")
 
 all_genes <- as.data.frame(all.genesRNA)
 write.csv(all_genes, file = "allgenes.csv")
 
 #Verify Specificity of Markers on UMAP plot
 #These are the top ones 
-
 pdf("All_MFs2_TopMarkeronUMAP.pdf")
 for (i in 1:length(Top2Markers$gene)){
 print(FeaturePlot(All_rna2, features = Top2Markers$gene[i], label = TRUE))}
@@ -173,50 +172,75 @@ dev.off()
 saveRDS(All_rna2, file = "scRNA_data.RDS")
 
 
+# Here are what the clusters are:
+# Cluster 0 = CF
+# Cluster 1 = Endo
+# Cluster 2 = Endo
+# Cluster 3 = CF
+# Cluster 4 = SMC
+# Cluster 5 = Endo
+# Cluster 6 = MonoMac
+# Cluster 7 = MonoMac
+# Cluster 8 = CF
+# Cluster 9 = SMC
+# Cluster 10 = CF
+# Cluster 11 = Endo
+# Cluster 12 = CF
+# Cluster 13 = Endo 
+# Cluster 14 = CF 
+# Cluster 15 = Endo  (VWF, Plvap)
+# Cluster 16 = Epicardial
+# Cluster 17 = MonoMac 
+# Cluster 18 = CFs (Tnc, Timp1)
+# Cluster 19 = Cardiomyocytes
+# Cluster 20 = B cells
+# Cluster 21 = Pericyte/ SMC
+# Cluster 22 = T cells
+# Cluster 23 = RBCs
 
-#Use generalized lit markers to try to assign IDs to clusters
-# Traditional Monocytes - CD14 + Lyz, Authors use ACE
-# B cells - MS4A1
-# NK Cells - GNLY, NKG7
-# DCs - FCER1A, CST3
-# Platelets - PPBP
-# Naive CD4+ T - IL7R, CCR7
-# Memory CD4+ T - IL7R, S100A4
-# CD 8 T - CD8A
-# Neutrophils - Ly6G
+#Let's remove the RBC cluster
+DimPlot(All_rna2)
+All_rna2 <- subset(All_rna2, idents = "23", invert = TRUE)
+#Let's rename the clusters to that they are by cell type
+table(Idents(All_rna2))
 
+All_rna2 <- RenameIdents(All_rna2, `0` = "CF1", `1` = "Endo1", `2` = "Endo2",'3'= "CF2", 
+                        `4` = "SMC1", `5` = "Endo3", `6` = "MonoMac1", `7` = "MonoMac2",
+                        `8` = "CF3", `9` = "SMC2", '10'="CF4",'11'="Endo4",'12'="CF5",
+                        '13' = "Endo5",'14'="CF6",'15'="Endo6",'16'="Epicardial",'17'="MonoMac3",
+                        '18'="CF7",'19'="Cardiomyocyte",'20'="B Cells",'21'="SMC3/Peri",'22'="T Cells")
+#Now we will reorder the clusters for easy graphing
+mylevels <- c("CF1","CF2","CF3","CF4","CF5","CF6","CF7","SMC1","SMC2","SMC3/Peri","Endo1",
+                      "Endo2","Endo3","Endo4","Endo5","Endo6","MonoMac1","MonoMac2","MonoMac3",
+                      "Cardiomyocyte","B Cells","T Cells", "Epicardial")
+All_rna2@active.ident <- factor (x = All_rna2@active.ident, levels = mylevels )
+All_rna2$SubCellTypes <- Idents(All_rna2)
+table(Idents(All_rna2))
 
-#~~~~~Clusters from the Paper~~~~~~~~~~~
-# MHC2 Cluster - MMP12
-# Monocyte Cluster - Ace
-# Isg Cluster - Ifit1
-# Timd4 Cluter - Timd4, Lyve1, Folr2
-# CCR2 Cluster - least well defined, has Ccr2, Plac8, Il1b, C1qa
+# We will copy orig.ident as TreatmentGroup 
+table(All_rna2$orig.ident)
+Idents(All_rna2) <- "orig.ident"
+All_rna2$TreatmentGroup <- Idents(All_rna2)
+DimPlot(All_rna2)
 
+#Let's create a heatmap of markers
+Idents(All_rna2) <- "SubCellTypes"
+cluster.averages <- AverageExpression(All_rna2, return.seurat = T)
+dimension1Features <- unlist(TopFeatures(All_rna2[["pca"]],balanced = TRUE, dim =1))
+dimension2Features <- unlist(TopFeatures(All_rna2[["pca"]],balanced = TRUE, dim =2))
+dimension3Features <- unlist(TopFeatures(All_rna2[["pca"]],balanced = TRUE, dim =3))
+dimensionalFeatures <- c(dimension1Features,dimension2Features,dimension3Features)
 
-FeaturePlot(All_MFs2, features =c("Ace","Ifit1","Timd4","Mmp12","Cx3cr1","Igf1","H2-Eb1"), label = TRUE)
-VlnPlot(All_MFs2, features = c("Ace","Ifit1","Timd4","Mmp12","H2-Eb1","Cd79a","Fabp4","Adgre1"),
-        pt.size = 0)
-VlnPlot(All_MFs2, features = c("Ace","Cd14","Cd68",'Cx3cr1',"Cd209a", "H2-Eb1"),
-        pt.size = 0)
-FeaturePlot(All_MFs2, features = c("Xcr1","Il1b"), label= TRUE)
-
-#ID which cells are dividing 
-pdf("Cells in Cell Cycle.pdf")
-VlnPlot(All_rna2, features = c("Xcr1","Irf8","Cdca3","Top2a"), pt.size = .5)
+pdf("cluster_heatmaps.pdf")
+DoHeatmap(cluster.averages, features = c(dimensionalFeatures[1:40],"Tnnt2","Cd79a","Trbc1","Msln"),
+          size=3, draw.lines = F)
+DoHeatmap(cluster.averages, features = unlist(Top2Markers[1:46,7]),
+          size=3, draw.lines = F)
 dev.off()
 
-pdf("test")
-FeaturePlot(All_MFs2, features = c("Ccl5","Fscn1","Ccr7"), label = TRUE)
-VlnPlot(All_MFs2, features = c("Ccl5","Fscn1","Ccr7","Batf3",""))
-dev.off()
 
 
 
-#Make a heatmap
-pdf("PCHeatmapAll_MFs2.pdf", width = 20, height = 20)
-DimHeatmap(object = All_MFs2, dims = 1:20,cells = 500, balanced = TRUE)
-dev.off()
 
 #Determine Dimensionality and make Jackstraw and ElbowPlots
 #All_MFs2 <- JackStraw(object = All_MFs2, num.replicate = 100) 
@@ -618,15 +642,88 @@ olson_sc_atac <- subset(
 )
 olson_sc_atac
 
+#normalize via TF-IDF and do single variable decomposition (together this is called LSI)
+olson_sc_atac <- RunTFIDF(olson_sc_atac)
+olson_sc_atac <- FindTopFeatures(olson_sc_atac, min.cutoff = 'q0')
+olson_sc_atac <- RunSVD(olson_sc_atac)
 
+# We need to see if there is a strong correlation between sequencing depth and biological variance
+# Generally, the first principal component in sc-ATAC is sequencing variablility, not biological differences
+DepthCor(olson_sc_atac)
+# Yes, the first principal component is highly correlated with sequencing depth
 
+# Perform Dimension Reduction
+olson_sc_atac <- RunUMAP(object = olson_sc_atac, reduction = 'lsi', dims = 2:30)
+olson_sc_atac <- FindNeighbors(object = olson_sc_atac, reduction = 'lsi', dims = 2:30)
+olson_sc_atac <- FindClusters(object = olson_sc_atac, verbose = FALSE, algorithm = 3)
+DimPlot(object = olson_sc_atac, label = TRUE) + NoLegend()
 
 
 # Here we will save all the objects so that they can be loaded later
-save.image(file = "Olson_Global_Objects.RData")
-load("Dick_Global_Objects.Rdata")
+#save.image(file = "Olson_Global_Objects.RData")
+saveRDS(olson_sc_atac, file = "sc_atac.RDS")
+#load("Dick_Global_Objects.Rdata")
+
+# assign genes to regions based on intersecting 2kb upstream of gene start sites
+# You can also do this using Cicero (check out later)
+gene.activities <- GeneActivity(olson_sc_atac)
+olson_sc_atac[['RNA']] <- CreateAssayObject(counts = gene.activities)
+# Add Gene Activity Matrix to Seurat ATAC matrix and normalize based on sequencing depth
+olson_sc_atac <- NormalizeData(
+  object = olson_sc_atac,
+  assay = 'RNA',
+  normalization.method = 'LogNormalize',
+  scale.factor = median(olson_sc_atac$nCount_RNA)
+)
+
+# Change the default assay of the ATAC seq object to display promoter intersections
+DefaultAssay(olson_sc_atac) <- 'RNA'
+
+# Idk what features to use here, check back after integration with scRNA
+FeaturePlot(
+  object = olson_sc_atac,
+  features = c('Thy1', 'Cd3e',''),
+  pt.size = 0.1,
+  max.cutoff = 'q95',
+  ncol = 3)
 
 
+olson_sc_atac <- FindVariableFeatures(olson_sc_atac)
+olson_sc_atac <- NormalizeData(olson_sc_atac)
+olson_sc_atac <- ScaleData(olson_sc_atac)
 
 
+# Integrate scATAC and scRNA ----------------------------------------------
 
+# Make sure scRNA's active assay is RNA (and not SCT)
+DefaultAssay(All_rna2) <- 'RNA'
+
+
+transfer.anchors <- FindTransferAnchors(
+  reference = All_rna2,
+  query = olson_sc_atac,
+  reduction = 'cca')
+
+# Before we do this, I should add additional labels to clusters such as cell type in the scRNA
+predicted.labels <- TransferData(
+  anchorset = transfer.anchors,
+  refdata = All_rna2$SubCellTypes,
+  weight.reduction = olson_sc_atac[['lsi']],
+  dims = 2:30
+)
+
+olson_sc_atac <- AddMetaData(object = olson_sc_atac, metadata = predicted.labels)
+
+plot1 <- DimPlot(
+  object = All_rna2,
+  group.by = 'SubCellTypes',
+  label = TRUE,
+  repel = TRUE) + NoLegend() + ggtitle('scRNA-seq')
+
+plot2 <- DimPlot(
+  object = olson_sc_atac,
+  group.by = 'predicted.id',
+  label = TRUE,
+  repel = TRUE) + NoLegend() + ggtitle('scATAC-seq')
+
+plot1 + plot2
