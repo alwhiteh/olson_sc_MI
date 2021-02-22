@@ -23,6 +23,10 @@ renv::snapshot()
 #features.tsv (previously called genes.tsv)
 #matrix.mtx
 
+
+
+# scRNA -------------------------------------------------------------------
+
 # Since we have a lot of samples, we will create a vector of paths
 rna_1_1MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_1MI")  
 rna_1_1S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_1S")
@@ -47,6 +51,9 @@ rna_8_3S<-CreateSeuratObject(rna_8_3S.data,min.cells = 3, min.features = 200,pro
 All_rna <- merge(rna_1_1MI, y = c(rna_1_1S,rna_1_3MI,rna_1_3S,rna_8_1MI,rna_8_1S,rna_8_3MI,rna_8_3S), 
                  add.cell.ids = c("1_1MI","1_1S","1_3MI","1_3S","8_1MI","8_1S","8_3MI","8_3S"),
                  project = "All_MFs")
+
+#We will remove the individual seurat objects to save memory
+rm(list=ls(pattern="rna_"))
 
 #Remove apoptotic cells with a lot of mitochondrial genes
 All_rna[["percent.mt"]] <- PercentageFeatureSet(object = All_rna, pattern = "^mt-")
@@ -132,30 +139,40 @@ dev.off()
 # }
 
 
-#The clusters we got were too small, so we should try again with less granular clustering
-All_rna2 <- FindClusters(All_rna2, verbose = FALSE, resolution = 0.1)
-All_rna2.markers <- FindAllMarkers(All_rna2, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) 
-All_rna2.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2Markers
+# ID Cell Types by Really Granular Clustering -----------------------------
 
-pdf("All_MFs2_TopMarkeronUMAP.pdf")
-for (i in 1:length(Top2Markers$gene)){
-  print(FeaturePlot(All_rna2, features = Top2Markers$gene[i], label = TRUE))}
-dev.off()
+# 
+# #The clusters we got were too small, so we should try again with less granular clustering
+# All_rna2 <- FindClusters(All_rna2, verbose = FALSE, resolution = 0.1)
+# All_rna2.markers <- FindAllMarkers(All_rna2, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) 
+# All_rna2.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2Markers
+# 
+# pdf("All_MFs2_TopMarkeronUMAP.pdf")
+# for (i in 1:length(Top2Markers$gene)){
+#   print(FeaturePlot(All_rna2, features = Top2Markers$gene[i], label = TRUE))}
+# dev.off()
+# 
+# # This tell us what the major cell types are 
+# # Cluster 0 = CF = DCN, Col1A1
+# # Cluster 1 = Endothelial Cells = CD36, FABP4
+# # Cluster 2 = SMCs = Acta2, Rgs5
+# # Cluster 3 = Macrophage/Monocyte = Lyz2, Spp1
+# # Cluster 4 = Epicardial Cells =  C3 + MSLN
+# # Cluster 5 = ? = Bace2, Plvap
+# # Cluster 6 = Ccr7, Cytip - resting T cells?
+# # Cluster 7 = some other macrophge?
+# # Cluster 8 = Myoz2 = CM!
+# # Cluster 9 = Alas2, Hbb-bh1 = RBCs - according to author
+# #
 
-# This tell us what the major cell types are 
-# Cluster 0 = CF = DCN, Col1A1
-# Cluster 1 = Endothelial Cells = CD36, FABP4
-# Cluster 2 = SMCs = Acta2, Rgs5
-# Cluster 3 = Macrophage/Monocyte = Lyz2, Spp1
-# Cluster 4 = Epicardial Cells =  C3 + MSLN
-# Cluster 5 = ? = Bace2, Plvap
-# Cluster 6 = Ccr7, Cytip - resting T cells?
-# Cluster 7 = some other macrophge?
-# Cluster 8 = Myoz2 = CM!
-# Cluster 9 = Alas2, Hbb-bh1 = 
-#
 
-save.image(file = "Olson_Global_Objects.RData")
+# Find RNA clusters -------------------------------------------------------
+
+#save.image(file = "Olson_Global_Objects.RData")
+# Save the Seurat Object instead of all global objects to save space
+saveRDS(All_rna2, file = "scRNA_data.RDS")
+
+
 
 #Use generalized lit markers to try to assign IDs to clusters
 # Traditional Monocytes - CD14 + Lyz, Authors use ACE
@@ -519,6 +536,97 @@ FeaturePlot(ChemoSeurat, features = c("Spp1"),
             label = TRUE, cols = c("lightblue","red"))
 dev.off()
 
+
+
+
+# scATAC  -----------------------------------------------------------------
+library(Signac)
+library(Seurat)
+library(GenomeInfoDb)
+library(EnsDb.Hsapiens.v75)  
+library(EnsDb.Mmusculus.v79)# here we will use EnsDb.Mmusculus.v79
+library(ggplot2)
+library(patchwork)
+set.seed(1234)
+
+library(hdf5r)
+#test <- H5File$new("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_filtered_peak_bc_matrix.h5")
+
+atac_counts <-Read10X_h5(filename = "/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_filtered_peak_bc_matrix.h5")
+
+
+atac_metadata <- read.csv(file = "/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_singlecell.csv",
+                          header = T, row.names =1)
+
+chrom_assay <- CreateChromatinAssay(counts = atac_counts, sep = c(":","-"), genome = 'mm10',
+                                    fragments = '/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_fragments.tsv.gz',
+                                    min.cell = 10, min.features = 200)
+
+olson_sc_atac <- CreateSeuratObject(counts = chrom_assay, assay = "peaks", meta.data = atac_metadata)
+
+#we will remove chrom_assay and atac_counts to save memory
+rm(chrom_assay,atac_counts)
+
+olson_sc_atac[['peaks']]
+granges(olson_sc_atac)
+
+# Annotate Regions with Ensembl Database using UCSC names
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+seqlevelsStyle(annotations) <- 'UCSC'
+genome(annotations) <- "mm10"
+Annotation(olson_sc_atac) <- annotations
+
+# QC
+#Compute Nucleosome Signal score per cell
+olson_sc_atac <- NucleosomeSignal(object = olson_sc_atac)
+
+# Compute TSS enrichment score per cell
+olson_sc_atac <- TSSEnrichment(olson_sc_atac, fast = FALSE)
+
+# add blacklist ration and fraction of reads in peaks
+olson_sc_atac$pct_reads_in_peaks <- olson_sc_atac$peak_region_fragments / olson_sc_atac$passed_filters * 100
+olson_sc_atac$blacklist_ratio <- olson_sc_atac$blacklist_region_fragments / olson_sc_atac$peak_region_fragments
+
+#Visualize High and Low TSS Enrichment in dataset
+olson_sc_atac$high.tss <- ifelse(olson_sc_atac$TSS.enrichment > 2, 'High', 'Low')
+TSSPlot(olson_sc_atac, group.by = 'high.tss') + NoLegend()
+
+# Visualize nucleosome enrichment of groups of cells
+olson_sc_atac$nucleosome_group <- ifelse(olson_sc_atac$nucleosome_signal > 0.8, 'NS > 0.8', 'NS < 0.8')
+FragmentHistogram(object = olson_sc_atac, group.by = 'nucleosome_group')
+
+# Look at distributions of: 
+pdf("sc_atac_QC.pdf", width = 15, height = 15)
+VlnPlot(
+  object = olson_sc_atac,
+  features = c('pct_reads_in_peaks', 'peak_region_fragments',
+               'TSS.enrichment', 'blacklist_ratio', 'nucleosome_signal'),
+  pt.size = 0.01,
+  ncol = 5
+)
+dev.off()
+
+# Remove outliers for these QC criteria
+olson_sc_atac <- subset(
+  x = olson_sc_atac,
+  subset = peak_region_fragments > 3000 &
+    peak_region_fragments < 20000 &
+    pct_reads_in_peaks > 15 &
+    blacklist_ratio < 0.05 &
+    nucleosome_signal < 4 &
+    TSS.enrichment > 2
+)
+olson_sc_atac
+
+
+
+
+
 # Here we will save all the objects so that they can be loaded later
-save.image(file = "Dick_Global_Objects.RData")
+save.image(file = "Olson_Global_Objects.RData")
 load("Dick_Global_Objects.Rdata")
+
+
+
+
+
