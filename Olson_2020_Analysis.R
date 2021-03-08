@@ -28,14 +28,14 @@ renv::snapshot()
 # scRNA -------------------------------------------------------------------
 
 # Since we have a lot of samples, we will create a vector of paths
-rna_1_1MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_1MI")  
-rna_1_1S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_1S")
-rna_1_3MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_3MI")
-rna_1_3S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P1_3S")
-rna_8_1MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_1MI")
-rna_8_1S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_1S")
-rna_8_3MI.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_3MI")
-rna_8_3S.data <- Read10X("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scRNA/P8_3S")
+rna_1_1MI.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P1_1MI")  
+rna_1_1S.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P1_1S")
+rna_1_3MI.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P1_3MI")
+rna_1_3S.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P1_3S")
+rna_8_1MI.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P8_1MI")
+rna_8_1S.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P8_1S")
+rna_8_3MI.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P8_3MI")
+rna_8_3S.data <- Read10X("/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scRNA/P8_3S")
  
 #Create Seurat Objects for each one
 rna_1_1MI<-CreateSeuratObject(rna_1_1MI.data, min.cells = 3, min.features = 200, project = "1_1MI")
@@ -233,7 +233,8 @@ DimPlot(All_rna2)
 
 # Save the Seurat Object instead of all global objects to save space
 saveRDS(All_rna2, file = "scRNA_data.RDS")
-#All_rna2 <- readRDS(file = "scRNA_data.RDS")
+All_rna2 <- readRDS("scRNA_data.RDS")
+
 
 #Let's create a heatmap of markers
 Idents(All_rna2) <- "SubCellTypes"
@@ -258,40 +259,41 @@ DimPlot(mac_rna)
 
 
 #Run UMAP, make clusters
-mac_rna <- SCTransform(mac_rna, vars.to.regress = "percent.mt", verbose = TRUE) #Correcting for nUMI is default YES
-mac_rna <- RunPCA(mac_rna, verbose = FALSE)
-mac_rna <- RunUMAP(mac_rna, dims = 1:30, verbose = FALSE)
-mac_rna <- FindNeighbors(mac_rna, dims = 1:30, verbose = FALSE) 
-mac_rna <- FindClusters(mac_rna, verbose = FALSE, resolution = 0.1)
-mac_rna.markers <- FindAllMarkers(mac_rna, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
-mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacMarkers
+#mac_rna <- SCTransform(mac_rna, vars.to.regress = "percent.mt", verbose = TRUE) #Correcting for nUMI is default YES
+#mac_rna <- RunPCA(mac_rna, verbose = FALSE)
+#mac_rna <- RunUMAP(mac_rna, dims = 1:30, verbose = FALSE)
+#mac_rna <- FindNeighbors(mac_rna, dims = 1:30, verbose = FALSE) 
+#mac_rna <- FindClusters(mac_rna, verbose = FALSE, resolution = 0.1)
+#mac_rna.markers <- FindAllMarkers(mac_rna, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
+#mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacMarkers
 
-pdf("Macs_TopMarkeronUMAP.pdf")
-for (i in 1:length(Top2MacMarkers$gene)){
-  print(FeaturePlot(mac_rna, features = Top2MacMarkers$gene[i], label = TRUE))}
-dev.off()
+#pdf("Macs_TopMarkeronUMAP.pdf")
+#for (i in 1:length(Top2MacMarkers$gene)){
+#  print(FeaturePlot(mac_rna, features = Top2MacMarkers$gene[i], label = TRUE))}
+#dev.off()
 
-Idents(mac_rna) <- "orig.ident"
-DimPlot(mac_rna)
-mylevels <- c("MI","Sham","MI","Sham","MI","Sham","MI","Sham")
-Idents(mac_rna) <- mylevels
-mac_rna$infarct <- Idents(mac_rna)
-DimPlot(mac_rna)
-mylevels <- c("1","1","1","1","8","8","8","8")
-Idents(mac_rna) <- mylevels
-mac_rna$age <- Idents(mac_rna)
-DimPlot(mac_rna)
-mylevels <- c("1","1","3","3","1","1","3","3")
-Idents(mac_rna) <- mylevels
-mac_rna$timepoint <- Idents(mac_rna)
-DimPlot(mac_rna)
-#age, infarction, and time alone do not yield clusters, but together they do (i.e. orig.ident)
-Idents(mac_rna) <- "SubCellTypes"
-FeaturePlot(mac_rna, features = c("Cxcr4","Ccr2","Timd4"), label = T)
-
-# Check CD14, CD16, and CD11b expression
-FeaturePlot(mac_rna, features = c("Cd14","Fcgr3","Itgam"), label = T)
-#Maybe cluster 1 is monocytes? 
+# Idents(mac_rna) <- "orig.ident"
+# DimPlot(mac_rna)
+# mylevels <- c("MI","Sham","MI","Sham","MI","Sham","MI","Sham")
+# Idents(mac_rna) <- mylevels
+# mac_rna$infarct <- Idents(mac_rna)
+# DimPlot(mac_rna)
+# mylevels <- c("1","1","1","1","8","8","8","8")
+# Idents(mac_rna) <- mylevels
+# mac_rna$age <- Idents(mac_rna)
+# DimPlot(mac_rna)
+# mylevels <- c("1","1","3","3","1","1","3","3")
+# Idents(mac_rna) <- mylevels
+# mac_rna$timepoint <- Idents(mac_rna)
+# DimPlot(mac_rna)
+# 
+# #age, infarction, and time alone do not yield clusters, but together they do (i.e. orig.ident)
+# Idents(mac_rna) <- "SubCellTypes"
+# FeaturePlot(mac_rna, features = c("Cxcr4","Ccr2","Timd4"), label = T)
+# 
+# # Check CD14, CD16, and CD11b expression
+# FeaturePlot(mac_rna, features = c("Cd14","Fcgr3","Itgam"), label = T)
+# #Maybe cluster 1 is monocytes? 
 
 #Save seurat object
 saveRDS(mac_rna, file = "mac_rna.rds")
@@ -305,88 +307,50 @@ dick <- readRDS(file='/Users/alexanderwhitehead/Library/Mobile Documents/com~app
 #agg_mac_rna <-  merge(mac_rna, y = dick,
 #                      add.cell.ids = c("olson","dick"),
 #                      project = "Aggregate_data")
-
+dick$author <- "olson"
+mac_rna$author <- "dick"
 agg.list <- list(dick, mac_rna)
 agg.list <- lapply(X = agg.list, FUN = function(x) {
   x <- NormalizeData(x)
   x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
 })
+features <- SelectIntegrationFeatures(object.list = agg.list)
 
-mac.anchors <- FindIntegrationAnchors(object.list = agg.list,dims = 1:20)
-agg_mac_rna <- IntegrateData(anchorset = mac.anchors, dims = 1:20)
+mac.anchors <- FindIntegrationAnchors(object.list = agg.list,anchor.features = features)
+agg_mac_rna <- IntegrateData(anchorset = mac.anchors)
 
-#DefaultAssay(agg_mac_rna) <- "integrated"
-#agg_mac_rna <- ScaleData(agg_mac_rna, verbose = FALSE)
-agg_mac_rna <- FindVariableFeatures(agg_mac_rna, selection.method = "vst", nfeatures = 2000)
+DefaultAssay(agg_mac_rna) <- "integrated"
+agg_mac_rna <- ScaleData(agg_mac_rna, verbose = FALSE)
 agg_mac_rna <- RunPCA(agg_mac_rna, npcs = 30, verbose = FALSE)
-agg_mac_rna <- RunUMAP(agg_mac_rna, dims = 1:30, verbose = FALSE)
-agg_mac_rna <- FindNeighbors(agg_mac_rna, dims = 1:30, verbose = FALSE) 
-agg_mac_rna <- FindClusters(agg_mac_rna, verbose = FALSE, resolution = 0.1)
+agg_mac_rna <- RunUMAP(agg_mac_rna, dims = 1:30, verbose = FALSE, reduction = "pca")
+agg_mac_rna <- FindNeighbors(agg_mac_rna, dims = 1:30, verbose = FALSE, reduction = "pca") 
+agg_mac_rna <- FindClusters(agg_mac_rna, verbose = FALSE, resolution = 0.2)
+
+DimPlot(agg_mac_rna)
+p1 <- DimPlot(agg_mac_rna, reduction = "umap", group.by = "author")
+p2 <- DimPlot(agg_mac_rna, reduction = "umap",label = TRUE, repel = TRUE)
+p1 + p2
+
+
+FeaturePlot(agg_mac_rna, feature = c("Timd4","Ccr2","Cxcr4","Cd34","Pecam1"), label = F)
 agg_mac_rna.markers <- FindAllMarkers(agg_mac_rna, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
 agg_mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacAggMarkers
 
-Idents(agg_mac_rna) <- "orig.ident"
-DimPlot(agg_mac_rna)
+# Cluster 0 - Antigen Presnting Macs (MHC2 hi)
+# Cluster 1 - Cathepsin D and Gpnmb Hi Macs (Likely CXCR4 hi)
+# Cluster 2 - YS Macs
+# Cluster 3 - Mainly in dick, Ly6C hi 
+# Cluster 4 - Dividing cells - survivin, stathmin, ki67
+# Cluster 5 - Only in Dick - Activated? Degranulating?  Mmp9 + CD244 
+# Cluster 6- Endothelial contamination? Mainly in Dick  - iNOS creating,
+# Cluster 7 - B Cells -  CD79a, Ly6d- Ms4A1
+# Cluster 8  - Fibrocyte?
 
+DimPlot(agg_mac_rna, reduction = "pca", split.by = 'author')
 
-
-
-# Show Timd4 cluster from Cont in the DimPlot of All Cells
-ContTimd4Cells <- WhichCells(Cont_MFs2, idents = "Timd4")
-MITimd4Cells <- WhichCells(MI_MFs2, idents = "Timd4")
-DimPlot(All_MFs2, cells.highlight = c("ContTimd4Cells",""), label = TRUE )
-FeaturePlot(MI_MFs2, features = c("Tnf","Timd4","Tgfb1","TdTomato","Il1b"), label = TRUE)
-DoHeatmap(All_MFs2, features = c("Tnf","Timd4","Tgfb1","TdTomato","Il11ra1"))
-VlnPlot(MI_MFs2, features = "Il1b")
-
-# Primary Differential Cytokine is Il1b after MI
-pdf("Cytokines from All and MI.pdf", width = 15, height = 15)
-FeaturePlot(All_MFs2, features = c("Il1b", "Il4", "Il11","Il10","Il6","Tnf","Tgfb1"), label = TRUE)
-FeaturePlot(MI_MFs2, features = c("Il1b", "Il4", "Il11","Il10","Il6","Tnf","Tgfb1"), label = TRUE)
-VlnPlot(MI_MFs2, features = c("Il1b","Tgfb1"))
-dev.off()
-
-#Primary Differential Cytokine Receptor is Il10ra after MI
-pdf("Cytokine Receptors from MI.pdf", width = 10, height = 15)
-FeaturePlot(MI_MFs2, features = c("Il1r1", "Il1r2","Il6ra","Il10ra","Il10rb"), label = TRUE)
-dev.off()
-
-# Cd44/RHAMM/MMP3/MMP9 Expression after MI
-pdf("Cd44 and HA signals.pdf", width = 10, height = 10)
-FeaturePlot(MI_MFs2, features = c("Cd44", "Hmmr","Mmp3","Mmp9"), label = TRUE)
-dev.off()
-
-#ECM Genes after MI
-pdf("ECM Mac Genes after MI.pdf", width = 10, height = 15)
-FeaturePlot(MI_MFs2, features = c("Fn1", "Sparc","Lox","Loxl1","Loxl2","Loxl3"), label = TRUE)
-dev.off()
-
-# Chemokines after MI
-pdf("Chemokines after MI.pdf", width = 15, height = 15)
-FeaturePlot(MI_MFs2, features = c("Ccl2", "Cxcl1","C5ar1","C5ar2","Ccl5","Ccl7","Cxcl10","Cxcl12"), label = TRUE)
-dev.off()
-
-# Chemokine Receptors after MI
-pdf("Chemokine Receptors after MI.pdf", width = 15, height = 15)
-FeaturePlot(MI_MFs2, features = c("Ccr2", "Ccr5","Cxcr4","Cxcr3","TdTomato","Gpr35","Ccr1"), label = TRUE)
-dev.off()
-
-# Chemokine Receptors after MI
-pdf("Chemokine Receptors after MI Chemo.pdf", width = 15, height = 15)
-FeaturePlot(MI_MFs2, features = c("Ccr2", "Ccr5","Cxcr4","Cxcr3","Cxcr2","TdTomato","Gpr35","Ccr1"), label = TRUE)
-dev.off()
-
-# Hypoxia Genes
-pdf("Hypoxia Genes after MI.pdf")
-FeaturePlot(MI_MFs2, features = c("Hif1a","Nppa"), label = TRUE)
-dev.off()
-
-# Hypoxia Genes
-pdf("SOCS Genes after MI.pdf", width = 15, height = 15)
-FeaturePlot(MI_MFs2, features = c("Socs1","Socs2","Socs3","Socs4","Socs5","Socs6","Socs7","Cish","Stat1","Stat3"), label = TRUE)
-#FeaturePlot(ChemoSeurat, features = c("Socs1","Socs2","Socs3","Socs4","Socs5","Socs6","Socs7","Cish","Stat1","Stat3"), label = TRUE)
-dev.off()
-
+#DefaultAssay(agg_mac_rna) <- "RNA"
+#nk.markers <- FindConservedMarkers(immune.combined, ident.1 = 6, grouping.var = "stim", verbose = FALSE)
+#head(nk.markers)
 
 #~~~~~~~~~ Create New Cluters Based on CCR2, Timd4, and CXCR4 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Save existing ident as cluster.ident
@@ -515,16 +479,15 @@ library(ggplot2)
 library(patchwork)
 set.seed(1234)
 library(hdf5r)
-#test <- H5File$new("/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_filtered_peak_bc_matrix.h5")
 
-atac_counts <-Read10X_h5(filename = "/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_filtered_peak_bc_matrix.h5")
+atac_counts <-Read10X_h5(filename = "/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scATAC/GSE153479_filtered_peak_bc_matrix.h5")
 
 
-atac_metadata <- read.csv(file = "/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_singlecell.csv",
+atac_metadata <- read.csv(file = "/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scATAC/GSE153479_singlecell.csv",
                           header = T, row.names =1)
 
 chrom_assay <- CreateChromatinAssay(counts = atac_counts, sep = c(":","-"), genome = 'mm10',
-                                    fragments = '/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/olson_ss_mi/olson_sc_MI/scATAC/GSE153479_fragments.tsv.gz',
+                                    fragments = '/Volumes/TUNEZ/TSCC_Files/scratch/olson_sc_rna_atac/scATAC/GSE153479_fragments.tsv.gz',
                                     min.cell = 10, min.features = 200)
 
 olson_sc_atac <- CreateSeuratObject(counts = chrom_assay, assay = "peaks", meta.data = atac_metadata)
@@ -649,6 +612,10 @@ sc_atac.markers <- FindAllMarkers(olson_sc_atac, only.pos = TRUE, min.pct = 0.25
 #All_rna2.markers %>% group_by(cluster) %>% slice_max(order_by = "avg_logFC", n = 1) -> Top1Markers
 sc_atac.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2atacMarkers
 Top2atacMarkers_genes <- ClosestFeature(olson_sc_atac, regions = Top2atacMarkers$gene)
+
+
+
+
 pdf("ATAC_features.pdf", width = 20, height = 60)
 FeaturePlot(
   object = olson_sc_atac,
@@ -688,6 +655,7 @@ FeaturePlot(
   label = T)
 dev.off()
 
+Idents(olson_sc_atac) <- 'seurat_clusters'
 pdf("test.pdf", width = 15, height = 40)
 FeaturePlot(
   object = olson_rna,
@@ -698,23 +666,52 @@ FeaturePlot(
   label = T)
 dev.off()
 
-DefaultAssay(olson_sc_atac) <- 'peaks'
+DefaultAssay(olson_sc_atac) <- 'rna'
+Idents(olson_sc_atac) <- 'sample'
+Idents(olson_sc_atac) <- 'seurat_clusters'
 
 pdf("coverage.pdf")
 CoveragePlot(
   object = olson_sc_atac,
-  region = "Cd8a",
+  region = "Ets1",
   extend.upstream = 40000,
   extend.downstream = 20000
 )
 dev.off()
 # We need to define ATAC clusters
 
+DimPlot(olson_sc_atac, label = T)
 
+atac_marker_anno <- ClosestFeature(olson_sc_atac, regions = sc_atac.markers$gene)
+colnames(sc_atac.markers)[7] <- "query_region"
+atac_markers <- inner_join(sc_atac.markers, atac_marker_anno, by = "query_region")
 
+# Cluster 0 - CM 1 
+# Cluster 1 - EC 1 
+# Cluster 2 - CM 2 
+# Cluster 3 - CF 1
+# Cluster 4 - CF 2
+# Cluster 5 - CM 3
+# Cluster 6 - SMC 
+# Cluster 7 - CF 3
+# Cluster 8 - IDK
+# Cluster 9 - MonoMac/Lymphocyte 1 
+# Cluster 10 - CM 4
+# Cluster 11 - EC 2
+# Cluster 12 - CF 4
+# Cluster 13 - IDK
+# Cluster 14 - MonoMac/Lymphocyte 2
+# Cluster 15 - IDK
 
+atac_markers$cluster <- as.factor(atac_markers$cluster)
+test <- dplyr::filter(atac_markers,  p_val_adj < 0.1, cluster ==15)
+print(head(test$gene_id, 100))
 
+Idents(olson_sc_atac) <- 'seurat_clusters'
+UMAPPlot(olson_sc_atac, label = T)
 
+DefaultAssay(olson_sc_atac) <- 'RNA'
+FeaturePlot(olson_sc_atac, features = c("Col1a1"))
 
 # Integrate scATAC and scRNA ----------------------------------------------
 
@@ -728,12 +725,14 @@ dev.off()
 #olson_rna <- readRDS(file = "scRNA_data.RDS")
 #olson_rna <- All_rna2
 #olson_sc_atac <- readRDS(file = "sc_atac.RDS")
-olson_rna_gran <- readRDS(file = "scRNA_granular.RDS")
+olson_rna_gran <- readRDS(file = "olson_rna_granular.RDS")
 
 DefaultAssay(olson_rna_gran) <- 'RNA' # Use the non-normalized values 
-#olson_rna_gran <- FindVariableFeatures(
-#  object = olson_rna,
-#  nfeatures = 10000)
+olson_rna <- FindVariableFeatures(
+  object = olson_rna_gran,
+  nfeatures = 10000)
+
+DefaultAssay(olson_sc_atac) <- 'RNA'
 
 transfer.anchors <- FindTransferAnchors(
   reference = olson_rna_gran,
@@ -743,7 +742,7 @@ transfer.anchors <- FindTransferAnchors(
 
 predicted.labels <- TransferData(
   anchorset = transfer.anchors,
-  refdata = olson_rna$SubCellTypes,
+  refdata = olson_rna_gran$seurat_clusters,
   weight.reduction = olson_sc_atac[['lsi']],
   dims = 2:30)
 
@@ -751,7 +750,7 @@ olson_sc_atac <- AddMetaData(object = olson_sc_atac, metadata = predicted.labels
 
 plot1 <- DimPlot(
   object = olson_rna,
-  group.by = 'SubCellTypes',
+  group.by = 'seurat_clusters',
   label = TRUE,
   repel = TRUE) + NoLegend() + ggtitle('scRNA-seq')
 
