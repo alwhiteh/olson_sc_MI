@@ -12,6 +12,11 @@ library(scran)
 library(ggplot2)
 library(sctransform)
 library(patchwork)
+library(JASPAR2020)
+library(TFBSTools)
+library(renv)
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(chromVAR)
 #To restore Rdata use:
 #load("Olson_Global_Objects.RData")
 
@@ -100,7 +105,7 @@ All_rna2 <- SCTransform(All_rna2, vars.to.regress = "percent.mt", verbose = TRUE
 #Run UMAP
 All_rna2 <- RunPCA(All_rna2, verbose = FALSE)
 All_rna2 <- RunUMAP(All_rna2, dims = 1:30, verbose = FALSE)
-# Makeclusterss
+# Make clusters
 All_rna2 <- FindNeighbors(All_rna2, dims = 1:30, verbose = FALSE) 
 All_rna2 <- FindClusters(All_rna2, verbose = FALSE)
 
@@ -251,49 +256,15 @@ DoHeatmap(cluster.averages, features = unlist(Top2Markers[1:46,7]),
           size=3, draw.lines = F)
 dev.off()
 
+FeaturePlot(All_rna2, features = c("Ctgf","Ogn"),  label = T)
+
+
+
 
 # Compare RNA-seq Values with Dick SC Data -----------------------------------------------------------------
 #Let's create a subsetted seurat object that only contains mono/mac
 mac_rna <- subset(All_rna2, idents = c("MonoMac1","MonoMac2","MonoMac3"))
 DimPlot(mac_rna)
-
-
-#Run UMAP, make clusters
-#mac_rna <- SCTransform(mac_rna, vars.to.regress = "percent.mt", verbose = TRUE) #Correcting for nUMI is default YES
-#mac_rna <- RunPCA(mac_rna, verbose = FALSE)
-#mac_rna <- RunUMAP(mac_rna, dims = 1:30, verbose = FALSE)
-#mac_rna <- FindNeighbors(mac_rna, dims = 1:30, verbose = FALSE) 
-#mac_rna <- FindClusters(mac_rna, verbose = FALSE, resolution = 0.1)
-#mac_rna.markers <- FindAllMarkers(mac_rna, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
-#mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacMarkers
-
-#pdf("Macs_TopMarkeronUMAP.pdf")
-#for (i in 1:length(Top2MacMarkers$gene)){
-#  print(FeaturePlot(mac_rna, features = Top2MacMarkers$gene[i], label = TRUE))}
-#dev.off()
-
-# Idents(mac_rna) <- "orig.ident"
-# DimPlot(mac_rna)
-# mylevels <- c("MI","Sham","MI","Sham","MI","Sham","MI","Sham")
-# Idents(mac_rna) <- mylevels
-# mac_rna$infarct <- Idents(mac_rna)
-# DimPlot(mac_rna)
-# mylevels <- c("1","1","1","1","8","8","8","8")
-# Idents(mac_rna) <- mylevels
-# mac_rna$age <- Idents(mac_rna)
-# DimPlot(mac_rna)
-# mylevels <- c("1","1","3","3","1","1","3","3")
-# Idents(mac_rna) <- mylevels
-# mac_rna$timepoint <- Idents(mac_rna)
-# DimPlot(mac_rna)
-# 
-# #age, infarction, and time alone do not yield clusters, but together they do (i.e. orig.ident)
-# Idents(mac_rna) <- "SubCellTypes"
-# FeaturePlot(mac_rna, features = c("Cxcr4","Ccr2","Timd4"), label = T)
-# 
-# # Check CD14, CD16, and CD11b expression
-# FeaturePlot(mac_rna, features = c("Cd14","Fcgr3","Itgam"), label = T)
-# #Maybe cluster 1 is monocytes? 
 
 #Save seurat object
 saveRDS(mac_rna, file = "mac_rna.rds")
@@ -303,10 +274,6 @@ saveRDS(mac_rna, file = "mac_rna.rds")
 
 #Let's read in the sc RNA seq from Dick et al and see how the cells cluster in aggregate.
 dick <- readRDS(file='/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/Dick_Human_SSMac/Alex_Analysis_Dick_SS/All_MFs2.rds')
-#chemo_seurat <- readRDS(file = '')
-#agg_mac_rna <-  merge(mac_rna, y = dick,
-#                      add.cell.ids = c("olson","dick"),
-#                      project = "Aggregate_data")
 dick$author <- "olson"
 mac_rna$author <- "dick"
 agg.list <- list(dick, mac_rna)
@@ -332,7 +299,7 @@ p2 <- DimPlot(agg_mac_rna, reduction = "umap",label = TRUE, repel = TRUE)
 p1 + p2
 
 
-FeaturePlot(agg_mac_rna, feature = c("Timd4","Ccr2","Cxcr4","Cd34","Pecam1"), label = F)
+FeaturePlot(agg_mac_rna, feature = c("Ccr2","Cxcr4"), label = T, blend = T)
 agg_mac_rna.markers <- FindAllMarkers(agg_mac_rna, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
 agg_mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacAggMarkers
 
@@ -341,132 +308,138 @@ agg_mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacAggMar
 # Cluster 2 - YS Macs
 # Cluster 3 - Mainly in dick, Ly6C hi 
 # Cluster 4 - Dividing cells - survivin, stathmin, ki67
+
+# We will remove the contaminating cells
 # Cluster 5 - Only in Dick - Activated? Degranulating?  Mmp9 + CD244 
 # Cluster 6- Endothelial contamination? Mainly in Dick  - iNOS creating,
 # Cluster 7 - B Cells -  CD79a, Ly6d- Ms4A1
 # Cluster 8  - Fibrocyte?
 
-DimPlot(agg_mac_rna, reduction = "pca", split.by = 'author')
+DefaultAssay(agg_mac_rna) <- "RNA"
+#test <- FindConservedMarkers(agg_mac_rna, grouping.var = "author", verbose = FALSE)
+#head(nk.markers)
+
+agg_mac_rna <- RenameIdents(agg_mac_rna, `0` = "APC Macs", `1` = "CXCR4", `2` = "YS Macs", 
+                                `3` = "Ly6C Hi Macs", `4` = "Dividing", `5` = "Degranulating", `6` = "Endothelial?", `7` = "B Cells", 
+                            `8` = "Fibrocyte?")
+DimPlot(agg_mac_rna, label = TRUE)
+
+
+table(Idents(agg_mac_rna))
+agg_mac_rna2 <- subset(agg_mac_rna, idents = c("APC Macs","CXCR4","YS Macs","Ly6C Hi Macs"))
+
+DimPlot(agg_mac_rna2)
+FeaturePlot(agg_mac_rna2, features = c("Spp1", "Cxcr4","Ccl24"), label = T)
+VlnPlot(agg_mac_rna2, features =c("Spp1", "Cxcr4","Ccl24","Ccr2"))
+
+DefaultAssay(agg_mac_rna2) <- "integrated"
+agg_mac_rna2 <- ScaleData(agg_mac_rna2, verbose = FALSE)
+agg_mac_rna2 <- FindVariableFeatures(agg_mac_rna2, selection.method = "vst", nfeatures = 2000)
+agg_mac_rna2 <- RunPCA(agg_mac_rna2, npcs = 30, verbose = FALSE)
+agg_mac_rna2 <- RunUMAP(agg_mac_rna2, dims = 1:30, verbose = FALSE, reduction = "pca")
+agg_mac_rna2 <- FindNeighbors(agg_mac_rna2, dims = 1:30, verbose = FALSE, reduction = "pca") 
+agg_mac_rna2 <- FindClusters(agg_mac_rna2, verbose = FALSE, resolution = 0.15)
+
+DefaultAssay(agg_mac_rna2) <- "RNA"
+DimPlot(agg_mac_rna2, label = T, split.by = "author")
+
+agg_mac_rna.markers <- FindAllMarkers(agg_mac_rna2, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
+agg_mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacAggMarkers
+
+
+
 
 #DefaultAssay(agg_mac_rna) <- "RNA"
-#nk.markers <- FindConservedMarkers(immune.combined, ident.1 = 6, grouping.var = "stim", verbose = FALSE)
-#head(nk.markers)
+#DimPlot(agg_mac_rna, reduction = "umap", split.by = 'author', label = T)
+#VlnPlot(agg_mac_rna, features = c("Timd4","Ccr2","Cxcr4"), pt.size = 0.01)
+FeaturePlot(agg_mac_rna2, features = c("Spp1", "Cxcr4","Timd4","Ccr2"), label = T)
+DefaultAssay(agg_mac_rna2) <- "SCT"
+FeatureScatter(agg_mac_rna2, "Ccr2", "Cxcr4", group.by = "author", slot = "counts")
+DefaultAssay(agg_mac_rna2) <- "integrated"
+print(agg_mac_rna2[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(agg_mac_rna2, dims = 1:2, reduction = "pca")
+DimHeatmap(agg_mac_rna2, dims = 1, cells = 500, balanced = TRUE)
+DefaultAssay(agg_mac_rna2) <- "SCT"
+FeaturePlot(agg_mac_rna2, features = c("Spp1","Sepp1"), label = T)
+FeatureScatter(agg_mac_rna2, "S100a11", "Igfbp4", group.by = "author")
+FeatureScatter(agg_mac_rna2, "S100a11", "Fxyd5", group.by = "author")
+FeaturePlot(agg_mac_rna2, features = c("S100a11","Igfbp4"), label = T)
+FeatureScatter(agg_mac_rna2, "Cxcr4", "Ccr2", group.by = "author")
+test <- subset(agg_mac_rna2, idents = c("0","2"))
+FeatureScatter(test, "Cxcr4", "Ccl2", group.by = "author", slot = "counts")
 
 #~~~~~~~~~ Create New Cluters Based on CCR2, Timd4, and CXCR4 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Save existing ident as cluster.ident
-MI_MFs2$cluster_names = Idents(MI_MFs2)
+# MI_MFs2$cluster_names = Idents(MI_MFs2)
+# 
+# chemocluster = FetchData(MI_MFs2,c("ident","orig.ident","Ccr2","Cxcr4","Timd4"))
+# Ccr2Cells = WhichCells(object = MI_MFs2, expression = Ccr2 > 1)
+# FeaturePlot(MI_MFs2, cells = Ccr2Cells, features = c("Ccr2"), label = TRUE)
+# Cxcr4Cells = WhichCells(object = MI_MFs2, expression = Cxcr4 >1)
+# length(table(Ccr2Cells)) #1783
+# FeaturePlot(MI_MFs2, cells = Cxcr4Cells, features = c("Cxcr4"), label = TRUE)
+# length(table(Cxcr4Cells)) #728
+# Timd4Cells = WhichCells(object = MI_MFs2, expression = Timd4 >0.5)
+# FeaturePlot(MI_MFs2, cells = Timd4Cells, features = c("Timd4"), label = TRUE)
+# length(table(Timd4Cells)) #348
+# MI_MFs2 <- SetIdent(object = MI_MFs2, value = "Other")
+# MI_MFs2 <- SetIdent(object = MI_MFs2, cells = Ccr2Cells, value = "Ccr2Cells")
+# MI_MFs2 <- SetIdent(object = MI_MFs2, cells = Cxcr4Cells, value = "Cxcr4Cells")
+# MI_MFs2 <- SetIdent(object = MI_MFs2, cells = Timd4Cells, value = "Timd4Cells")
+# pdf("Chemo_on_MI.pdf")
+# FeaturePlot(MI_MFs2, features = c("Ccr2","Cxcr4","Timd4"), label = TRUE)
+# dev.off()
 
-chemocluster = FetchData(MI_MFs2,c("ident","orig.ident","Ccr2","Cxcr4","Timd4"))
-Ccr2Cells = WhichCells(object = MI_MFs2, expression = Ccr2 > 1)
-FeaturePlot(MI_MFs2, cells = Ccr2Cells, features = c("Ccr2"), label = TRUE)
-Cxcr4Cells = WhichCells(object = MI_MFs2, expression = Cxcr4 >1)
-length(table(Ccr2Cells)) #1783
-FeaturePlot(MI_MFs2, cells = Cxcr4Cells, features = c("Cxcr4"), label = TRUE)
-length(table(Cxcr4Cells)) #728
-Timd4Cells = WhichCells(object = MI_MFs2, expression = Timd4 >0.5)
-FeaturePlot(MI_MFs2, cells = Timd4Cells, features = c("Timd4"), label = TRUE)
-length(table(Timd4Cells)) #348
-MI_MFs2 <- SetIdent(object = MI_MFs2, value = "Other")
-MI_MFs2 <- SetIdent(object = MI_MFs2, cells = Ccr2Cells, value = "Ccr2Cells")
-MI_MFs2 <- SetIdent(object = MI_MFs2, cells = Cxcr4Cells, value = "Cxcr4Cells")
-MI_MFs2 <- SetIdent(object = MI_MFs2, cells = Timd4Cells, value = "Timd4Cells")
-pdf("Chemo_on_MI.pdf")
-FeaturePlot(MI_MFs2, features = c("Ccr2","Cxcr4","Timd4"), label = TRUE)
-dev.off()
-
-#Create new seurat with 60% of cells that bin niceley with expression measured
-ChemoSeurat <- subset(MI_MFs2, idents = c("Ccr2Cells","Cxcr4Cells","Timd4Cells"))
-# Reset MI_MFs2 Idents to clusters
-Idents(MI_MFs2) <- MI_MFs2$cluster_names
-#recluster and bin cells from new ChemoSeurat
-ChemoSeurat <- FindVariableFeatures(ChemoSeurat)
-
-
-#ChemoSeurat <- JackStraw(object = ChemoSeurat, num.replicate = 100) 
+# #Create new seurat with 60% of cells that bin niceley with expression measured
+# ChemoSeurat <- subset(MI_MFs2, idents = c("Ccr2Cells","Cxcr4Cells","Timd4Cells"))
+# # Reset MI_MFs2 Idents to clusters
+# Idents(MI_MFs2) <- MI_MFs2$cluster_names
+# #recluster and bin cells from new ChemoSeurat
+# ChemoSeurat <- FindVariableFeatures(ChemoSeurat)
+# 
+# 
+# #ChemoSeurat <- JackStraw(object = ChemoSeurat, num.replicate = 100) 
 #ChemoSeurat <- ScoreJackStraw(ChemoSeurat, dims = 1:20)
 #pdf("Chemo MFs Dimensions.pdf")
 #ElbowPlot(object = ChemoSeurat)
 #JackStrawPlot(ChemoSeurat, dims = 1:20)
 #dev.off()
-
-ChemoSeurat <- RunUMAP(ChemoSeurat, dims = 1:30, verbose = FALSE)
-
-# With the new Seurat update, you don't need to SCTTransform again, BUT you can't do Jackstraw is subsetting
-#ChemoSeurat <- SCTransform(ChemoSeurat, vars.to.regress = "percent.mt", verbose = TRUE)
-#ChemoSeurat <- RunPCA(ChemoSeurat, verbose = FALSE)
-
-ChemoSeurat <- FindNeighbors(ChemoSeurat, dims = 1:20, verbose = TRUE)
-ChemoSeurat <- FindClusters(ChemoSeurat, resolution = 0.8, verbose = TRUE)
-
-pdf("ID_Chemo_Clusters.pdf")
-FeaturePlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"), label = TRUE)
-VlnPlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"))
-dev.off()
-
-#Merge Clusters to obtain 3 main clusters: CCR2, CXCR4, TIMD4
-ChemoSeurat <- RenameIdents(object = ChemoSeurat, "4" = "Timd4","5"="Ccr2","2"="Ccr2",
-                            "9"="Ccr2","6"="Cxcr4","7"="Ccr2","8"="Ccr2","1"="Ccr2",
-                            "0"="Ccr2","3"="Cxcr4")
-#Groups 3 and 5 seemed to be double positive or ambiguous
-pdf("Chemo_New_IDs.pdf")
-FeaturePlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"), label = TRUE)
-VlnPlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"))
-DimPlot(ChemoSeurat, label = TRUE, group.by = "ident") + NoLegend()
-DimPlot(ChemoSeurat, label = TRUE, group.by = "orig.ident") + NoLegend()
-dev.off()
-
-#Find DEGS Between the three clusters
-ChemoSeurat.markers <- FindAllMarkers(ChemoSeurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-ChemoSeurat.markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_logFC) -> ChemoTop2Markers
-FeaturePlot(ChemoSeurat, features = c("Gpnmb","Timd4","Tgfbr1"), label = TRUE)
-
-#Get CXCR4 Markers and then Run through GO Term Screen
-CXCR4_Markers <- ChemoSeurat.markers[c(204:328),(7)]
-write.csv(CXCR4_Markers, file = "CXCR4 Markers for GO.csv")
-
-pdf("ChemoPlots.pdf", width = 20, height = 20)
-FeaturePlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4","Syngr1","Olfml3","Tgfbr1","S1pr5","Hif1a"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4","Ctsd","Ctsb","Ctsz","Ctsl","Ccl24"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(ChemoSeurat, features = c("Il1b", "Il4", "Il11","Il10","Il6","Tnf","Tgfb1","Pdgfa","Pdgfb","Il1rn","Igf2bp3"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(ChemoSeurat, features = c("Tnc", "Sparc", "Spp1","Postn","Thbs1","Thbs2","Ogn","Hspg2","Robo2","Robo3","Robo4","Ace"),
-            label = TRUE, cols = c("lightblue","red"))
-VlnPlot(ChemoSeurat, features = c("Spp1", "Col1A1","Col4a4","Igf1","Tgfbr1","Ace"), slot = "data")
-dev.off()
-
-
-pdf("MI_Cont_Chemo_Overlaps.pdf")
-FeaturePlot(Cont_MFs2, features = c("Ccr2","Cxcr4","Timd4"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(MI_MFs2, features = c("Ccr2","Cxcr4","Timd4"),
-            label = TRUE, cols = c("lightblue","red"))
-DimPlot(All_MFs2, label=TRUE, group.by = "orig.ident")
-FeaturePlot(All_MFs2, features = c("Ccr2","Cxcr4","Timd4"),
-            label = TRUE, cols = c("lightblue","red"))
-dev.off()
-
-pdf("Dick_Plots_for_Adam.pdf")
-FeaturePlot(MI_MFs2, features = c("Ccr2"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(MI_MFs2, features = c("Cxcr4"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(MI_MFs2, features = c("Timd4"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(MI_MFs2, features = c("Ccr5"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(MI_MFs2, features = c("Ccr1"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(MI_MFs2, features = c("Socs3"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(ChemoSeurat, features = c("Ccl24"),
-            label = TRUE, cols = c("lightblue","red"))
-FeaturePlot(ChemoSeurat, features = c("Spp1"),
-            label = TRUE, cols = c("lightblue","red"))
-dev.off()
-
-
+# 
+# ChemoSeurat <- RunUMAP(ChemoSeurat, dims = 1:30, verbose = FALSE)
+# 
+# # With the new Seurat update, you don't need to SCTTransform again, BUT you can't do Jackstraw is subsetting
+# #ChemoSeurat <- SCTransform(ChemoSeurat, vars.to.regress = "percent.mt", verbose = TRUE)
+# #ChemoSeurat <- RunPCA(ChemoSeurat, verbose = FALSE)
+# 
+# ChemoSeurat <- FindNeighbors(ChemoSeurat, dims = 1:20, verbose = TRUE)
+# ChemoSeurat <- FindClusters(ChemoSeurat, resolution = 0.8, verbose = TRUE)
+# 
+# pdf("ID_Chemo_Clusters.pdf")
+# FeaturePlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"), label = TRUE)
+# VlnPlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"))
+# dev.off()
+# 
+# #Merge Clusters to obtain 3 main clusters: CCR2, CXCR4, TIMD4
+# ChemoSeurat <- RenameIdents(object = ChemoSeurat, "4" = "Timd4","5"="Ccr2","2"="Ccr2",
+#                             "9"="Ccr2","6"="Cxcr4","7"="Ccr2","8"="Ccr2","1"="Ccr2",
+#                             "0"="Ccr2","3"="Cxcr4")
+# #Groups 3 and 5 seemed to be double positive or ambiguous
+# pdf("Chemo_New_IDs.pdf")
+# FeaturePlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"), label = TRUE)
+# VlnPlot(ChemoSeurat, features = c("Ccr2","Cxcr4","Timd4"))
+# DimPlot(ChemoSeurat, label = TRUE, group.by = "ident") + NoLegend()
+# DimPlot(ChemoSeurat, label = TRUE, group.by = "orig.ident") + NoLegend()
+# dev.off()
+# 
+# #Find DEGS Between the three clusters
+# ChemoSeurat.markers <- FindAllMarkers(ChemoSeurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+# ChemoSeurat.markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_logFC) -> ChemoTop2Markers
+# FeaturePlot(ChemoSeurat, features = c("Gpnmb","Timd4","Tgfbr1"), label = TRUE)
+# 
+# #Get CXCR4 Markers and then Run through GO Term Screen
+# CXCR4_Markers <- ChemoSeurat.markers[c(204:328),(7)]
+# write.csv(CXCR4_Markers, file = "CXCR4 Markers for GO.csv")
+# 
 
 
 # scATAC  -----------------------------------------------------------------
@@ -704,45 +677,69 @@ atac_markers <- inner_join(sc_atac.markers, atac_marker_anno, by = "query_region
 # Cluster 15 - IDK
 
 atac_markers$cluster <- as.factor(atac_markers$cluster)
-test <- dplyr::filter(atac_markers,  p_val_adj < 0.1, cluster ==15)
-print(head(test$gene_id, 100))
+#test <- dplyr::filter(atac_markers,  p_val_adj < 0.1, cluster ==15)
+#print(head(test$gene_id, 100))
 
 Idents(olson_sc_atac) <- 'seurat_clusters'
 UMAPPlot(olson_sc_atac, label = T)
 
 DefaultAssay(olson_sc_atac) <- 'RNA'
-FeaturePlot(olson_sc_atac, features = c("Col1a1"))
+FeaturePlot(olson_sc_atac, features = c("Tgfb1"))
+
+#Save the SC_atac object for now, will update later
+saveRDS(olson_sc_atac, file = "scATAC_data_nolab.RDS")
 
 # Integrate scATAC and scRNA ----------------------------------------------
 
-# I don't think the original authors actually did this... 
-# Might explain why the cells aren't overlapping very well
-
-# We may need to use really broad clustering (i.e. cell type level) in order for this to work
 
 
 # Make sure scRNA's active assay is RNA (and not SCT)
-#olson_rna <- readRDS(file = "scRNA_data.RDS")
-#olson_rna <- All_rna2
-#olson_sc_atac <- readRDS(file = "sc_atac.RDS")
-olson_rna_gran <- readRDS(file = "olson_rna_granular.RDS")
+All_rna2 <- readRDS("scRNA_data.RDS")
+olson_rna <- All_rna2
+#olson_sc_atac <- readRDS(file = "sc_atac_nolab.RDS")
+#olson_rna_gran <- readRDS(file = "olson_rna_granular.RDS")
 
-DefaultAssay(olson_rna_gran) <- 'RNA' # Use the non-normalized values 
+
+# This code chunk integrates granular clusters
+# DefaultAssay(olson_rna_gran) <- 'RNA' # Use the non-normalized values 
+# olson_rna <- FindVariableFeatures(
+#   object = olson_rna_gran,
+#   nfeatures = 10000)
+# 
+# DefaultAssay(olson_sc_atac) <- 'RNA'
+# 
+# transfer.anchors <- FindTransferAnchors(
+#   reference = olson_rna_gran,
+#   query = olson_sc_atac,
+#   reduction = 'cca',
+#   dims = 1:40)
+# 
+# predicted.labels <- TransferData(
+#   anchorset = transfer.anchors,
+#   refdata = olson_rna_gran$seurat_clusters,
+#   weight.reduction = olson_sc_atac[['lsi']],
+#   dims = 2:30)
+# 
+# olson_sc_atac <- AddMetaData(object = olson_sc_atac, metadata = predicted.labels)
+
+# This code chunk integrates based on Smaller Clustering
+DefaultAssay(olson_rna) <- 'RNA' # Use the non-normalized values 
+Idents(olson_rna) <- 'SubCellTypes'
 olson_rna <- FindVariableFeatures(
-  object = olson_rna_gran,
+  object = olson_rna,
   nfeatures = 10000)
 
 DefaultAssay(olson_sc_atac) <- 'RNA'
 
 transfer.anchors <- FindTransferAnchors(
-  reference = olson_rna_gran,
+  reference = olson_rna,
   query = olson_sc_atac,
   reduction = 'cca',
   dims = 1:40)
 
 predicted.labels <- TransferData(
   anchorset = transfer.anchors,
-  refdata = olson_rna_gran$seurat_clusters,
+  refdata = olson_rna$SubCellTypes,
   weight.reduction = olson_sc_atac[['lsi']],
   dims = 2:30)
 
@@ -750,31 +747,356 @@ olson_sc_atac <- AddMetaData(object = olson_sc_atac, metadata = predicted.labels
 
 plot1 <- DimPlot(
   object = olson_rna,
-  group.by = 'seurat_clusters',
+  group.by = 'SubCellTypes',
   label = TRUE,
-  repel = TRUE) + NoLegend() + ggtitle('scRNA-seq')
+  repel = TRUE) + ggtitle('scRNA-seq')
 
 plot2 <- DimPlot(
   object = olson_sc_atac,
   group.by = 'predicted.id',
   label = TRUE,
-  repel = TRUE) + NoLegend() + ggtitle('scATAC-seq')
+  repel = TRUE) + ggtitle('scATAC-seq')
 
 plot1 + plot2
+ggsave("test.png", width = 15, height = 8)
+
+
+saveRDS(olson_sc_atac, file = "scRNA_data.RDS")
 
 plot1 <- DimPlot(object = olson_sc_atac,
-    group.by = 'predicted.id',
+    group.by = 'rna_clusters',
     label = TRUE,
     repel = TRUE) + NoLegend() + ggtitle('scATAC-seq')
 
-plot2 <- DimPlot(object = olson_sc_atac,
-              group.by = 'predicted.id',
+plot2 <- DimPlot(object = olson_rna,
+              group.by = 'SubCellTypes',
               label = TRUE,
-              repel = TRUE) + NoLegend() + ggtitle('scATAC-seq')
+              repel = TRUE) + NoLegend() + ggtitle('scRNA-seq')
+
+plot1 + plot2
+ggsave("Dimplots_rna_and_atac.png")
+
+Idents(olson_sc_atac) <- "predicted.id"
+DefaultAssay(olson_sc_atac) <- 'RNA'
+#smc1 <- WhichCells(olson_sc_atac,idents = "SMC1" )
+#smc2 <- WhichCells(olson_sc_atac,idents = "SMC2" )
+#monomac3 <- WhichCells(olson_sc_atac,idents = "MonoMac3" )
+#DimPlot(olson_sc_atac, cells.highlight= list(monomac3, smc1), cols.highlight = c("darkblue", "darkred"), cols= "grey")
+DimPlot(olson_sc_atac, label = T)
 
 
+# The predicted cluster IDs do not match perfectly, so we will have to manually correct some:
+
+# Most CFs can be ID'ed by Col1a1
+# CF1 = CF (FGF18)
+# CF2 = CF (Fbln, Loxl)
+# CF3 = CF (matrix)
+# CF4 = CF (matrix)
+# CF5 = CF (matrix)
+# CF6 = CF (Fbln, Loxl)
+# CF7 = CF (matrix)
+
+# Most Endo's can be traced by Dll4 
+# Endo1 = Endo 
+# Endo2 = Endo 
+# Endo3 = Endo 
+# Endo4 = Endo 
+# Endo5 = Endo 
+# Endo6 = Endo 
+
+# Most SMCs can be ID'ed by ???
+# SMC1 = Unsure
+# SMC2 = Classic Mature SMCs (Myh11, Rgs5)
+
+# Cardiomyocyte = Cardiomyocyte (myosin heavy chains)
+# B Cells = B cells (Cd3d)
+# MonoMac1 = YS Containing Macs (Ccl24)
+# MonoMac2 = Spp1 Making Macs, Ccr2 making macs? Mixed bag
+# MonoMac3 = Cardiomyocytes (Lots of CM genes)
+# Epicardial = Epicardial (Wt1, C3)
 
 
+FeaturePlot(olson_sc_atac, features = c("Myh11","Cd3d"), label = T)
 
 
+VlnPlot(olson_sc_atac, features = c("Spp1","Ccl24","Ccr2","Cxcr4"))
 
+olson_sc_atac.rnamarkers <- FindAllMarkers(olson_sc_atac, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
+write.csv(olson_sc_atac.rnamarkers, "olson_sc_atac_rna_markers.csv")
+pdf("ATAC_Markers_Cluster_ID.pdf")
+FeaturePlot(olson_sc_atac, features = c("Dll4","Col1a1", "Socs2"),pt.size = 0.1, label = T)
+dev.off()
+FeaturePlot(olson_rna, features = c("Cxcr4","Ccr2"), label = T)
+
+# After we fix the cluster IDs, then we need to save the object again
+olson_sc_atac <- RenameIdents(olson_sc_atac,  'CF1' = "CF_a", 'CF2' = "CF_b",
+                              'CF3' = "CF_c", 'CF4' = "CF_d", 'CF5' = "CF_e",
+                              'CF6' = "CF_f",'CF7' = "CF_g", 'Endo1' = "Endo_a",
+                              'Endo2' = "Endo_b",'Endo3' = "Endo_c",'Endo4' = "Endo_d",
+                              'Endo5' = "Endo_e", 'Endo6' = "Endo_f",'SMC1' = "SMC_a",
+                              'SMC2' = "SMC_b", 'B Cells' = "B Cells", 'MonoMac1' = "MonoMac_a",
+                              "MonoMac2" = "MonoMac_b",'Cardiomyocyte' = "CM_a", 'MonoMac3' = "CM_b",
+                              'Epicardial' = "EpiC")
+pdf("DimPlot_RenamedATACClust.pdf")
+DimPlot(olson_sc_atac, label = T)
+dev.off()
+
+olson_sc_atac.rnamarkers <- FindAllMarkers(olson_sc_atac, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
+write.csv(olson_sc_atac.rnamarkers, "olson_sc_atac_rna_markers.csv")
+saveRDS(olson_sc_atac, file = "scRNA_data_renamed.RDS")
+
+FeaturePlot(olson_sc_atac, features = c("Has2"), split.by = "sample", label = T)
+plot1 <- VlnPlot(olson_sc_atac, features = c("Has2"), split.by = "sample")
+
+plot1
+ggsave("has2.png")
+#olson_atac_mac <- subset(olson_sc_atac, idents = c("MonoMac1","MonoMac2"))
+#olson_atac_mac.markers <- FindAllMarkers(olson_atac_mac, only.pos = TRUE, min.pct = 0.8, logfc.threshold = 0.5) # this takes a while
+#FeaturePlot(olson_atac_mac, features = c("Cxcr4","Ccr2"), label = T)
+
+DimPlot(olson_sc_atac)
+olson_sc_atac$rna_clusters <- Idents(olson_sc_atac)
+DefaultAssay(olson_sc_atac) <- 'peaks'
+plot1 <- FeaturePlot(olson_sc_atac, features = "Col1a2")
+
+
+saveRDS(olson_sc_atac, file = "scRNA_data_renamed.RDS")
+
+plot1 <- CoveragePlot(object = olson_sc_atac, region = c("Col1a2"))
+ggsave("Col1A1_Cov_Plot.png")
+
+CFs_atac <- subset(olson_sc_atac, idents =c("CF_a","CF_b","CF_c","CF_d","CF_e","CF_f","CF_g"))
+DimPlot(CFs_atac)
+CFs_atac <- RunUMAP(object = CFs_atac, reduction = 'lsi', dims = 2:30)
+CFs_atac <- FindNeighbors(object = CFs_atac, reduction = 'lsi', dims = 2:30)
+CFs_atac <- FindClusters(object = CFs_atac, verbose = FALSE, algorithm = 3)
+DimPlot(object = CFs_atac, label = TRUE) 
+DefaultAssay(CFs_atac) <- 'RNA'
+CF_atac_rna_markers <- FindAllMarkers(CFs_atac)
+DefaultAssay(CFs_atac) <- 'peaks'
+CF_atac_peak_markers <- FindAllMarkers(CFs_atac)
+
+DimPlot(object = CFs_atac, label = TRUE, split.by = "sample") 
+FeaturePlot(CFs_atac, features = c("Col1a2"), split.by = "sample")
+VlnPlot(CFs_atac, features = c("Col1a2","Col1a1","Tnc","Cd44"))
+FeaturePlot(CFs_atac, features = c("Col1a2","Col1a1","Tnc","Cd44"), label = T)
+
+#Based on the new clustering of CFs, most clusters are either unique to P1 or P8
+# Good: 1,4, 5?
+# Bad: 2,3, 0?
+
+# Should do motif finding for clusters 2 + 3 
+
+
+DefaultAssay(CFs_atac) <- 'peaks'
+
+
+pfm <- getMatrixSet(x = JASPAR2020,opts = list(species = 9606, all_versions = FALSE))
+
+CFs_atac <- AddMotifs(
+  object = CFs_atac,
+  genome = BSgenome.Mmusculus.UCSC.mm10, pfm = pfm)
+
+da_peaks <- FindMarkers(
+  object = CFs_atac,
+  ident.1 = '3',
+  ident.2 = '4',
+  only.pos = TRUE,
+  test.use = 'LR',
+  latent.vars = 'nCount_peaks'
+)
+top.da.peak <- rownames(da_peaks[da_peaks$p_val < 0.005, ])
+
+enriched.motifs <- FindMotifs(
+  object = CFs_atac,
+  features = top.da.peak
+)
+
+MotifPlot(
+  object = CFs_atac,
+  motifs = head(rownames(enriched.motifs))
+)
+
+CFs_atac <- RunChromVAR(
+  object = CFs_atac,
+  genome = BSgenome.Mmusculus.UCSC.mm10
+)
+
+DefaultAssay(CFs_atac) <- 'chromvar'
+
+# look at the activity of Mef2c
+plot1 <- DimPlot(CFs_atac, split.by = "sample")
+plot2 <- FeaturePlot(
+  object = CFs_atac,
+  features = "MA1144.1",
+  min.cutoff = 'q10',
+  max.cutoff = 'q90',
+  pt.size = 0.1,
+  split.by = "sample"
+)
+plot1 + plot2
+plot1
+plot2
+ggsave("AP-1_Motifs_CF_sc_atac.png")
+
+saveRDS(olson_sc_atac, file = "scRNA_data_renamed.RDS")
+
+
+# Since AP-1 is the motif unique to p8 MI CFs, let's find a similar cluster in the RNA-seq
+# And see what AP-1 proteins are upregulated between those clusters
+
+DimPlot(olson_rna, label = T)
+CFs_rna <- subset(olson_rna, idents = c("CF1","CF2","CF3","CF4","CF5","CF6","CF7"))
+# Scale then run PCA/UMAP
+CFs_rna <- NormalizeData(object = CFs_rna, normalization.method = "LogNormalize", scale.factor = 1e4, verbose = TRUE)
+CFs_rna <- FindVariableFeatures(CFs_rna)
+CFs_rna <- SCTransform(CFs_rna, vars.to.regress = "percent.mt", verbose = TRUE) #Correcting for nUMI is default YES
+CFs_rna <- RunPCA(CFs_rna, verbose = FALSE)
+CFs_rna <- RunUMAP(CFs_rna, dims = 1:30, verbose = FALSE)
+CFs_rna <- FindNeighbors(CFs_rna, dims = 1:30, verbose = FALSE) 
+CFs_rna <- FindClusters(CFs_rna, verbose = FALSE, resolution = 0.1)
+DimPlot(CFs_rna, label = T)
+CF_rna_markers <-  FindAllMarkers(CFs_rna, only.pos = F, min.pct = 0.5, logfc.threshold = 0.25)
+
+DimPlot(object = CFs_rna, label = TRUE, split.by = "TreatmentGroup") 
+ggsave("CF_Dimplot_Split.png")
+
+# Seems like most CFs are lost with age
+# Good - 0,1,3,4
+# Bad - 2 (emerges with MI only in p8)
+
+# Check AP-1 family protein expression - see if some are limited to Cluster 2
+#FeaturePlot(CFs_rna, features = c("Jun","Fos","Atf3","Fosl2","Thbs1"), label = T)
+# Check subfamilies of AP-1
+# Check Fos subfamily
+VlnPlot(CFs_rna, features = c("Fos","Fosb",
+                              "Fosl1","Fosl2"))  # The Fosls are Fra 1 + 2
+# Fosl2 looks promising?
+
+# Check ATF family
+VlnPlot(CFs_rna, features = c("Atf1","Atf2","Atf3","Atf4",
+                              "Atf5","Atf6","Atf6b",
+                              "Atf7","Batf","Batf2",
+                              "Batf3","Jdp2","Atfx"))
+# Check Jun Family
+VlnPlot(CFs_rna, features = c("Jun","Junb","Jund"))
+
+# Check MAF Family
+VlnPlot(CFs_rna, features = c("Maf","Mafa","Mafb","Maff",
+                              "Mafg","Mafk","Nrl"))
+
+# Let's look at the predicted RNA binding of Fosl2 in the atac data
+VlnPlot(CFs_atac, features = c("Fos","Fosb",
+                              "Fosl1","Fosl2"), pt.size = 0.01)
+# Fosl1 has a slightly higher candle, but nothing super convincing
+FeaturePlot(CFs_atac, features = c("Junb"), label = T)
+
+# Let's put the in a heatmap for only this cluster
+DoHeatmap(CFs_rna, features = c("Atf1","Atf2","Atf3","Atf4",
+                                "Atf5","Atf6","Atf6b",
+                                "Atf7","Batf","Batf2",
+                                "Batf3","Jdp2","Jun","Junb","Jund",
+                                "Fos","Fosb",
+                                "Fosl1","Fosl2","Maf","Mafa","Mafb","Maff",
+                                "Mafg","Mafk","Nrl"))
+
+
+#Let's check chromatin remodeling proteins to see if they are driving a unique AP-1 response
+#https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4932839/
+# Let's check histone acetylases
+VlnPlot(CFs_rna, features = c("Kat2a","Kat2b","Kat5",
+                                  "Kat6a","Kat6b","Kat8","Kat7",
+                                  "Ep300","Crebbp","Hat1",
+                                  "Atf2","Ncoa1","Taf1"))
+DimPlot(CFs_rna, split.by = "TreatmentGroup")
+# none look promising
+
+# Let's check histone lysine methyltransferases
+VlnPlot(CFs_rna, features = c("Kmt2a","Kmt2d","Kmt2c",
+                              "Kmt2b","Setd1a","Set1l",
+                              "Kat7","Nsd1","Whsc1",
+                              "Whsc1l1","Ash1l","Setd2",
+                              "Set2l"))
+        # can't find other names for Set1L or Set2L
+# There are a lot so here's another plot
+VlnPlot(CFs_rna, features = c("Ezh1","Ezh2","Smyd1",
+                              "Smyd2","Smyd3","Smyd4",
+                              "Smyd5","Setmar","Setdb1",
+                              "Setdb2","Ehmt1","Ehmt2",
+                              "Suv39h1","Suv39h2"))
+VlnPlot(CFs_rna, features = c("Pdrm1","Pdrm2","Pdrm4",
+                              "Pdrm5","Pdrm6","Pdrm7",
+                              "Pdrm8","Pdrm9","Pdrm9",
+                              "Pdrm10","Pdrm11","Pdrm12",
+                              "Pdrm13","Pdrm14","Pdrm15",
+                              "Pdrm16"))
+      #Not sure what ANY of these gene names should be 
+VlnPlot(CFs_rna, features = c("Suv420h1","Suv420h2","Kmt2e",
+                              "Setd3","Setd4","Setd5",
+                              "Setd6","Setd7","Setd8",
+                              "Dot1l"))
+
+
+#Let's check SWI/SNF complexes aka BAF/PBAF Complexes
+VlnPlot(CFs_rna, features = c("Smarca4","Arid1a","Arid1b",
+                              "Smarcb1","Phf10","Dpf1",
+                              "Dpf3","Dpf2",
+                              "Actl6a","Actl6b","Smarce1",
+                              "Smarcd1","Smarcd2","Smarcd3",
+                              "Smarcc1","Smarcc2","Ss18","Pbrm1",
+                              "Brd7"))
+
+# Now let's check ISWI Family Chromatin Remodelers
+VlnPlot(CFs_rna, features = c("Smarca5","Baz1a","Smarca1",
+                              "Rsf1","Cecr2","Baz1a",
+                              "Chrac1","Pole3",
+                              "Bptf","Rbbp7","Rbbp4",
+                              "Baz2a","Baz1b","Dek","Ercc6",
+                              "Nmi","Sf3b1","Mybbp1a","Ddx21"))
+
+# Now let's check CHD family chromatin remodeling complexes
+VlnPlot(CFs_rna, features = c("Chd3","Chd4","Hdac1",
+                              "Hdac2","Mta1","Mta2",
+                              "Mta3",
+                              "Actl6a","Actl6b"))
+                              
+FeaturePlot(CFs_rna, features = c("Hdac1",
+                                  "Hdac2","Mta1","Mta2",
+                                  "Mta3"), label = T)
+
+VlnPlot(CFs_rna, features = c("Smarce1",
+                              "Gatad2a","Gatad2b","Mbd2",
+                              "Mbd3","Chd5","Hdac2","Mta3",
+                              "Chd1","Chd2","Chd6","Chd7",
+                              "Chd8","Chd9"))
+
+# Now let's check INO80 Family chromatin remodeling genes
+VlnPlot(CFs_rna, features = c("Ino80","Ruvbl1","Ruvbl2",
+                              "Mcrs1","Tfpt",
+                              "Yy1","Ino80c","Ino80b",
+                              "Uchl5","Nfrkb","Ino80e",
+                              "Ep400","Trrap","Kat5",
+                              "Brd8","Epc1","Epc2",
+                              "Ncoa1","Yeats4","Dmap1","Ing3",
+                              "Meaf6","Morf4l1"))
+      # Not sure if Ies6, Yl2 exists in humans
+VlnPlot(CFs_rna, features = c("Morf4l2","Srcap","Arp6",
+                              "Mcrs1",
+                              "Hit1"))
+    # not sure what Arp6 or Hit1 should be 
+
+
+#None of the chromatin remodeling proteins fit the trend.
+# However! AP-1 is able to open chromatin by itself!!
+# https://rupress.org/jem/article/217/1/e20182009/132593/AP-1-activity-induced-by-co-stimulation-is
+
+# Can we check for the transcription of AP-1 stimulators?
+VlnPlot(CFs_rna, features = c("Mapk8","Mapk14","Mapk1")) # This is JNK, p38, Erk
+
+VlnPlot(CFs_rna, features = c("Tcf21","Nppa","Hif1a"))
+VlnPlot(CFs_atac, features = c("Tcf21","Nppa","Hif1a"))
+DimPlot(CFs_rna, label = T, split.by = "TreatmentGroup")
+
+
+#FeaturePlot(olson_rna, features = c("Thbs1"), label = T, split.by = "TreatmentGroup")
+ggsave("test.png", width = 40, height = 10)
