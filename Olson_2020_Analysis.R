@@ -181,7 +181,11 @@ All_rna <- FindVariableFeatures(
    nfeatures = 10000)
  
 saveRDS(All_rna2, file = "olson_rna_granular.RDS")
+all_rna_gran <- readRDS(file = "olson_rna_granular.RDS")
 
+all_rna_gran <- RenameIdents(all_rna_gran, `0` = "CF", `1` = "EC", `2` = "SMC",'3'= "MonoMac", 
+                         `4` = "EpiC", `5` = "???", `6` = "T", `7` = "MonoMac2",
+                         `8` = "CM", `9` = "RBC") 
 # Find RNA clusters -------------------------------------------------------
 
 # Here are what the clusters are:
@@ -256,9 +260,11 @@ DoHeatmap(cluster.averages, features = unlist(Top2Markers[1:46,7]),
           size=3, draw.lines = F)
 dev.off()
 
-FeaturePlot(All_rna2, features = c("Ctgf","Ogn"),  label = T)
+FeaturePlot(All_rna2, features = c("En1","Ogn"),  label = T)
 
-
+Idents(All_rna2)<- "predicted.id"
+All_rna2 <- RenameIdents(All_rna2,'MonoMac3' = "Cardiomyocyte2")
+FeaturePlot(All_rna2, features = c("Ccl2"),  label = T)
 
 
 # Compare RNA-seq Values with Dick SC Data -----------------------------------------------------------------
@@ -268,14 +274,14 @@ DimPlot(mac_rna)
 
 #Save seurat object
 saveRDS(mac_rna, file = "mac_rna.rds")
-
+mac_rna <- readRDS("mac_rna.rds")
 
 # Try to integrate with Harmony instead
 
 #Let's read in the sc RNA seq from Dick et al and see how the cells cluster in aggregate.
 dick <- readRDS(file='/Users/alexanderwhitehead/Library/Mobile Documents/com~apple~CloudDocs/Documents/PhD/RNASeq_stuff/Dick_Human_SSMac/Alex_Analysis_Dick_SS/All_MFs2.rds')
-dick$author <- "olson"
-mac_rna$author <- "dick"
+dick$author <- "dick"
+mac_rna$author <- "olson"
 agg.list <- list(dick, mac_rna)
 agg.list <- lapply(X = agg.list, FUN = function(x) {
   x <- NormalizeData(x)
@@ -300,6 +306,7 @@ p1 + p2
 
 
 FeaturePlot(agg_mac_rna, feature = c("Ccr2","Cxcr4"), label = T, blend = T)
+FeaturePlot(agg_mac_rna, feature = c("Timd4"), label = T)
 agg_mac_rna.markers <- FindAllMarkers(agg_mac_rna, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25) # this takes a while
 agg_mac_rna.markers %>% group_by(cluster) %>% slice_head(n = 2) -> Top2MacAggMarkers
 
@@ -865,6 +872,15 @@ saveRDS(olson_sc_atac, file = "scRNA_data_renamed.RDS")
 plot1 <- CoveragePlot(object = olson_sc_atac, region = c("Col1a2"))
 ggsave("Col1A1_Cov_Plot.png")
 
+
+olson_sc_atac <- readRDS("scRNA_data_renamed.RDS")
+FeaturePlot(olson_sc_atac, features = c("En1"), label = T)
+
+
+# CF only analysis --------------------------------------------------------
+
+
+
 CFs_atac <- subset(olson_sc_atac, idents =c("CF_a","CF_b","CF_c","CF_d","CF_e","CF_f","CF_g"))
 DimPlot(CFs_atac)
 CFs_atac <- RunUMAP(object = CFs_atac, reduction = 'lsi', dims = 2:30)
@@ -932,7 +948,8 @@ plot2 <- FeaturePlot(
   min.cutoff = 'q10',
   max.cutoff = 'q90',
   pt.size = 0.1,
-  split.by = "sample"
+  split.by = "sample",
+  label = T
 )
 plot1 + plot2
 plot1
@@ -1095,8 +1112,119 @@ VlnPlot(CFs_rna, features = c("Mapk8","Mapk14","Mapk1")) # This is JNK, p38, Erk
 
 VlnPlot(CFs_rna, features = c("Tcf21","Nppa","Hif1a"))
 VlnPlot(CFs_atac, features = c("Tcf21","Nppa","Hif1a"))
+
+
+# Let's look at some downstream AP-1 genes: (from supplmenetal Fig 2 of https://www.nature.com/articles/s41467-018-08236-0)
+FeaturePlot(CFs_rna, features = c("Ctgf", "Egr1","Egr2","Mafb","Nfkb2","E2f8"), label = T)
+FeaturePlot(CFs_rna, features = c("Thap1", "Stat6","Hic1","Nfatc1"), label = T)
 DimPlot(CFs_rna, label = T, split.by = "TreatmentGroup")
 
+#What about NF-kB downstream genes?
+FeaturePlot(CFs_rna, features = c("Nr4a2","Nfkbia"), label = T)
 
-#FeaturePlot(olson_rna, features = c("Thbs1"), label = T, split.by = "TreatmentGroup")
-ggsave("test.png", width = 40, height = 10)
+
+
+# Are the other matricellular proteins made by other cell types in response to MI?
+FeaturePlot(olson_rna, features = c("Thbs1","Thbs2","Ogn","Sparc","Spp1", "Dcn","Lum"), label = T)
+# Spp1 is mainly from macrophages
+# Thbs1 + Thbs2 + Ogn + Dcn + Lum = mainly CFs
+# SPARC is from all non-hematopoetic cells
+
+FeaturePlot(olson_rna, features = c("Sparc"), label = T, split.by = "TreatmentGroup")
+VlnPlot(olson_rna, features = c("Sparc", "Dcn","Lum"))
+# Sparc seems to be expressed across the board
+
+
+# What about ACE?
+FeaturePlot(olson_rna, features = c("Ace"), label = T)
+FeaturePlot(CFs_rna, features = c("Ace"), label = T)
+# YES, ACE is produced primarily in non-regenerative CFs
+
+
+# What about HA related signaling
+FeaturePlot(olson_rna, features = c("Has1", "Has2", "Has3","Cd44","Hmmr"), label = T)
+# Look closer at CF clusters
+FeaturePlot(CFs_rna, features = c("Has1", "Has2", "Has3","Cd44","Hmmr"), label = T)
+VlnPlot(CFs_rna, features = c("Has1", "Has2", "Has3","Cd44","Hmmr"))
+# Not sure what to make of this
+
+
+
+
+# Endo Only Analysis ------------------------------------------------------
+
+
+
+## Let's look at endothelial cells that are making ACE and CXCL12
+DimPlot(olson_rna, label = T)
+Endo_rna <- subset(olson_rna, idents = c("Endo1","Endo2","Endo3","Endo4","Endo5","Endo6"))
+# Scale then run PCA/UMAP
+Endo_rna <- NormalizeData(object = Endo_rna, normalization.method = "LogNormalize", scale.factor = 1e4, verbose = TRUE)
+Endo_rna <- FindVariableFeatures(Endo_rna)
+Endo_rna <- SCTransform(Endo_rna, vars.to.regress = "percent.mt", verbose = TRUE) #Correcting for nUMI is default YES
+Endo_rna <- RunPCA(Endo_rna, verbose = FALSE)
+Endo_rna <- RunUMAP(Endo_rna, dims = 1:30, verbose = FALSE)
+Endo_rna <- FindNeighbors(Endo_rna, dims = 1:30, verbose = FALSE) 
+Endo_rna <- FindClusters(Endo_rna, verbose = FALSE, resolution = 0.5)
+DimPlot(Endo_rna, label = T)
+Endo_rna_markers <-  FindAllMarkers(Endo_rna, only.pos = F, min.pct = 0.5, logfc.threshold = 0.25)
+
+DimPlot(object = Endo_rna, label = TRUE, split.by = "TreatmentGroup") 
+ggsave("Endo_Dimplot_Split.png")
+
+FeaturePlot(Endo_rna, features = c("Cxcl12","Ace"), label = T, split.by = "TreatmentGroup")
+FeaturePlot(olson_rna, features = c("Tlr2","Tlr4"), label = T)
+ 
+test <- WhichCells(Endo_rna, idents = 1)
+test <- subset(Endo_rna, idents = c("1"))
+Idents(test) <- "orig.ident"
+table(Idents(test))
+#ggsave("test.png", width = 40, height = 10)
+
+# To understand the sc data in the context of the bulk data, are there just more endothelial cells (cxcl12+) and CFs (matricell+)
+# relative to other cells after MI? Is this a game of proliferation regulation?
+DimPlot(olson_rna)
+# Let's rever to our cell-type clusters to see how composition changes
+#DefaultAssay(olson_rna) <- 'SCT'
+All_rna2 <- FindClusters(All_rna2, verbose = FALSE, resolution = 0.1)
+DimPlot(All_rna2)
+
+# # This tell us what the major cell types are 
+# # Cluster 0 = CF = DCN, Col1A1
+# # Cluster 1 = Endothelial Cells = CD36, FABP4
+# # Cluster 2 = SMCs = Acta2, Rgs5
+# # Cluster 3 = Macrophage/Monocyte = Lyz2, Spp1
+# # Cluster 4 = Epicardial Cells =  C3 + MSLN
+# # Cluster 5 = More Endothelial
+# # Cluster 6 = Lymphocyte - Ccr7, Cytip
+# # Cluster 7 = Macrophage 2 
+# # Cluster 8 = Myoz2 = CM!
+
+FeaturePlot(All_rna2, features = c("Ccr7","Myoz2"), label = T)
+All_rna2 <- RenameIdents(All_rna2, `0` = "CF", `1` = "Endo", `2` = "SMC",'3'= "Mac", 
+                         `4` = "EpiC", `5` = "Endo2", `6` = "Lymphocyte", `7` = "Mac2",
+                         `8` = "CM")
+All_rna2$CellTypes <- Idents(All_rna2)
+table(Idents(All_rna2))
+
+test <- subset(All_rna2, idents = c("CF"))
+Idents(test) <- "orig.ident"
+table(Idents(test))
+Idents(All_rna2) <- "orig.ident"
+table(Idents(All_rna2))
+
+# This shows us proportion for CFs if you do division
+# CFs:
+# 1_1MI  1_1S 1_3MI  1_3S 8_1MI  8_1S 8_3MI  8_3S 
+# 846  1111  1419  1014   279   303   592    98 
+
+# Total 
+# 1_1MI  1_1S 1_3MI  1_3S 8_1MI  8_1S 8_3MI  8_3S 
+# 2226  2673  3471  2612  1015  1427  1672   541 
+
+# Pct CF of total by sample is: 
+# 1_1MI  1_1S 1_3MI  1_3S 8_1MI  8_1S 8_3MI  8_3S 
+# 0.38  0.42  0.41   0.39  0.27  0.21  0.35  0.18
+
+# Percentage decreases in nonregen MI, so unsure why Matricellular genes go up in bulk?
+
